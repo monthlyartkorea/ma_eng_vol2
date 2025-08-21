@@ -10,8 +10,8 @@
   <style>
     :root{
       --bg:#0b0c10; --panel:#151821; --text:#e9eef6; --muted:#9aa3b2; --accent:#46b3ff; --paper-dark:#0e1117;
-      /* JS에서 실제 값으로 덮어씌움: 단면폭/단면높이/스프레드폭 */
-      --page-w:1240px; --page-h:1624px; --book-w:2480px;
+      /* JS에서 실제 값으로 덮어씌움(단면/스프레드) */
+      --page-w:1240px; --page-h:1624px; --book-w:2480px; --content-w:2480px; /* ← 가변 폭 */
     }
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#0d1017,#0b0c10);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
     .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px}
@@ -30,9 +30,9 @@
     }
     #zoomLayer.dragging{cursor:grabbing;}
 
-    /* PageFlip 컨테이너: 스프레드(책 전체) 크기로 고정 */
+    /* PageFlip 컨테이너: 현재 모드의 콘텐츠 폭으로 고정 */
     #flip{
-      position:relative; width:var(--book-w); height:var(--page-h);
+      position:relative; width:var(--content-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
     }
     /* 내부 캔버스 배경도 어둡게 */
@@ -40,38 +40,27 @@
 
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
     #status{font-weight:600}
-    /* 제목 박스: 한 줄 고정 + 말줄임표 + 최대 높이 35px  04:24pm 추가*/
+
+    /* 제목 박스 */
     .titleBox{
-      /* flex 레이아웃에서 ellipsis가 동작하도록 */
-      min-width: 0;           /* 중요: 줄바꿈 대신 축소 허용 */
-      max-width: clamp(160px, 45vw, 720px); /* 화면 폭에 따라 유연한 최대폭 */
-      display: flex;
-      align-items: center;
-    
-      /* 기존 .field에서 상속되는 padding/border 유지 */
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    
-      /* 높이 제한 */
-      max-height: 35px;       /* 세로 35px 넘지 않음 */
+      min-width: 0; max-width: clamp(160px, 45vw, 720px);
+      display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-height:35px;
     }
-    
-    /* 실제 텍스트: 말줄임표 + 가변 폰트크기 */
     .titleText{
-      font-weight: 700;
-      display: block;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    
-      /* 너무 좁을 때 자동으로 줄이는 기본 장치 */
-      font-size: clamp(12px, 1.6vw, 16px);
-      line-height: 1.1;
-      min-width: 0;           /* flex 수축 허용 */
+      font-weight:700; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-size:clamp(12px,1.6vw,16px); line-height:1.1; min-width:0;
     }
-    
-    /* 툴바가 너무 빽빽해지면 버튼/입력도 살짝 줄이는 보조 규칙 (선택) */
+
+    /* === 모바일(좁은 폭)에서는 상단 메뉴 간소화 === */
+    @media (max-width: 900px){
+      .titleBox,
+      #status,
+      #pageGroup,    /* 페이지 입력/표시 그룹 */
+      #zoomGroup,    /* 줌 슬라이더 그룹 */
+      .spacer        /* 가운데 여백 */
+      { display:none !important; }
+    }
+
     @media (max-width: 640px){
       .toolbar .btn, .toolbar .field { padding: 4px 8px; }
       .toolbar .range { width: 120px; }
@@ -86,16 +75,19 @@
     <div id="status" class="hint">Loading…</div>
 
     <button id="prev" class="btn">◀ Prev</button>
-    <div class="field">
+
+    <!-- 페이지 그룹에 id 부여 (모바일에서 숨김) -->
+    <div id="pageGroup" class="field">
       <span>Page</span>
       <input id="page" type="number" min="1" value="1">
       <span id="total">/ 0</span>
     </div>
+
     <button id="next" class="btn">Next ▶</button>
 
-    <div class="field">
+    <!-- 줌 그룹에 id 부여 (모바일에서 숨김) -->
+    <div id="zoomGroup" class="field">
       <span>Zoom</span>
-      <!-- 25% ~ 400% -->
       <input id="zoom" class="range" type="range" min="25" max="400" value="100">
       <span id="zoomLbl">100%</span>
     </div>
@@ -136,9 +128,14 @@
   let pageFlip = null;
   let currentPages = [];
 
-  // 원본 단면 크기 (픽셀) — 첫 이미지로 자동 감지
+  // 원본 단면 크기 — 첫 이미지로 자동 감지
   let PAGE_W = 1240, PAGE_H = 1624;
   let BOOK_W = PAGE_W * 2, BOOK_H = PAGE_H;
+
+  // 현재 모드 (true=단면/모바일, false=스프레드/데스크톱)
+  const MOBILE_BREAKPOINT = 900;
+  let isSinglePageMode = false;  // ← 뷰포트에 따라 갱신
+  let CONTENT_W = BOOK_W;        // ← 현재 모드의 콘텐츠 폭 (줌/패닝 계산용)
 
   // 줌/패닝 상태
   const MIN_SCALE = 0.25, MAX_SCALE = 4.0;
@@ -153,6 +150,7 @@
     root.style.setProperty('--page-w', PAGE_W + 'px');
     root.style.setProperty('--page-h', PAGE_H + 'px');
     root.style.setProperty('--book-w', BOOK_W + 'px');
+    root.style.setProperty('--content-w', CONTENT_W + 'px'); // ← 현재 모드 반영
   }
 
   function getImageSize(url){
@@ -160,34 +158,50 @@
       const img = new Image();
       img.onload = ()=>resolve({ w: img.naturalWidth, h: img.naturalHeight });
       img.onerror = reject;
-      // CORS가 있으면 서버에서 이미지에 Access-Control-Allow-Origin 설정 필요
-      img.src = url;
+      img.src = url; // CORS 필요 시 서버에서 ACAO 헤더 설정
     });
   }
 
-  function initFlip(imageURLs){
+  // === 클릭/탭 내비게이션(우측→다음, 좌측→이전) ===
+  let navClickBound = false;
+  function bindNavClick(){
+    if (navClickBound) return;
+    flipRoot.addEventListener('click', (e) => {
+      if (e.button !== 0) return;
+      if (!pageFlip) return;
+      if (scale > 1) return; // 확대 중엔 패닝 우선
+      const rect = flipRoot.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const ratio = x / rect.width;
+      if (ratio >= 0.5) pageFlip.flipNext(); else pageFlip.flipPrev();
+    });
+    navClickBound = true;
+  }
+
+  // ===== PageFlip 초기화 (모드 전달) =====
+  function initFlip(imageURLs, forcePortrait){
     flipRoot.innerHTML = '';
     if (pageFlip){ pageFlip.destroy(); pageFlip = null; }
     pageFlip = new St.PageFlip(flipRoot, {
-      // 단면 기준 원본 픽셀 해상도로 고정 — stretch 금지
       width: PAGE_W,
       height: PAGE_H,
       size: "fixed",
-      minWidth: PAGE_W, maxWidth: PAGE_W,   // 컨테이너가 늘어나며 흐트러지는 걸 방지
+      minWidth: PAGE_W, maxWidth: PAGE_W,
       minHeight: PAGE_H, maxHeight: PAGE_H,
-      usePortrait: false,                   // 스프레드 고정
+      usePortrait: !!forcePortrait,   // ← 단면 모드 여부
       showCover: true,
       maxShadowOpacity: .2,
       mobileScrollSupport: true,
-      disableFlipByClick: false
+      disableFlipByClick: true
     });
     pageFlip.loadFromImages(imageURLs);
-
     totalEl.textContent = `/ ${imageURLs.length}`;
     pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
     pageFlip.on('flip', e => { pageInput.value = e.data + 1; });
+    bindNavClick();
   }
 
+  // ===== manifest =====
   async function fetchManifest(url){
     setStatus(`Fetching manifest: ${url}`);
     const res = await fetch(url, { cache: 'no-store' });
@@ -207,6 +221,39 @@
     throw new Error('지원하지 않는 manifest 형식입니다.');
   }
 
+  // ===== 모드 전환(폭 기준) =====
+  function computeSinglePageMode(){
+    return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+  }
+
+  function applyModeIfNeeded(reinitIfChanged = true){
+    const nextSingle = computeSinglePageMode();
+    if (nextSingle === isSinglePageMode && !reinitIfChanged){
+      // 모드 변화 없음: 크기만 재정렬
+      CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
+      applyCSSVars();
+      centerWithinViewport(); applyTransform();
+      return;
+    }
+    if (nextSingle !== isSinglePageMode){
+      isSinglePageMode = nextSingle;
+      CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
+      applyCSSVars();
+      // 현재 페이지 인덱스 보존
+      const idx = pageFlip ? pageFlip.getCurrentPageIndex() : 0;
+      initFlip(currentPages, isSinglePageMode);
+      pageFlip.flip(idx);
+      // 뷰 재정렬
+      centerWithinViewport(); applyTransform();
+    }else{
+      // 강제 재적용(초기 호출)
+      CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
+      applyCSSVars();
+      initFlip(currentPages, isSinglePageMode);
+      centerWithinViewport(); applyTransform();
+    }
+  }
+
   // ===== Zoom / Pan =====
   function applyTransform(){
     zoomLayer.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
@@ -215,8 +262,8 @@
   }
   function centerWithinViewport(){
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    const scaledW = BOOK_W * scale;
-    const scaledH = BOOK_H * scale;
+    const scaledW = CONTENT_W * scale;      // ← 현재 모드 폭 사용
+    const scaledH = PAGE_H * scale;
     if (scaledW <= vw) tx = (vw - scaledW) / 2; else tx = Math.min(0, Math.max(tx, vw - scaledW));
     if (scaledH <= vh) ty = (vh - scaledH) / 2; else ty = Math.min(0, Math.max(ty, vh - scaledH));
   }
@@ -240,8 +287,7 @@
   }
   function fitToViewportOr100(){
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    const fit = Math.min(vw / BOOK_W, vh / BOOK_H);
-    // 보기 시작 시 화면보다 크면 '맞춤'으로 시작, 아니면 100%
+    const fit = Math.min(vw / CONTENT_W, vh / PAGE_H);
     const startScale = Math.max(MIN_SCALE, Math.min(1, fit));
     setScale(startScale);
   }
@@ -254,9 +300,7 @@
     const n = Math.max(1, Math.min(parseInt(pageInput.value||'1',10), pageFlip.getPageCount()));
     pageFlip.flip(n-1); pageInput.value = n;
   });
-  zoomRange.addEventListener('input', ()=>{
-    setScale(parseInt(zoomRange.value,10)/100);
-  });
+  zoomRange.addEventListener('input', ()=> setScale(parseInt(zoomRange.value,10)/100) );
   fsBtn.addEventListener('click', ()=>{
     const el = viewer;
     if(!document.fullscreenElement){
@@ -276,12 +320,11 @@
     setScale(scale * factor, x, y);
   }, { passive:false });
 
-  // 패닝 + 핀치
+  // 패닝 + 핀치 (Pointer Events)
   const pointers = new Map();
   let isDragging = false, dragLast = {x:0,y:0};
   let pinchStartDist = 0, pinchStartScale = 1, pinchPrevCenter = {x:0,y:0};
 
-  function distance(a,b){ return Math.hypot(a.x-a.x + (b.x-a.x), a.y-a.y + (b.y-a.y)); } // safe inline
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
   function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
 
@@ -327,7 +370,16 @@
   viewer.addEventListener('pointercancel', endPointer);
   viewer.addEventListener('pointerleave', endPointer);
 
-  window.addEventListener('resize', ()=>{ centerWithinViewport(); applyTransform(); });
+  // 창 크기 변경 시: 모드 전환/재정렬/제목 맞춤
+  let _resizeTimer = null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(()=>{
+      applyModeIfNeeded(true);
+      fitToViewportOr100(); // 새 모드 기준으로 다시 맞춤
+      fitTitleDebounced();
+    }, 120);
+  });
 
   // 초기 로드
   (async ()=>{
@@ -340,18 +392,23 @@
       currentPages = normalized.pages;
       if (!currentPages.length){ setStatus('manifest에 페이지가 없습니다.'); return; }
 
-      // 1) 첫 이미지 해상도를 기준으로 단면 크기 결정 → 스프레드 크기 계산
+      // 첫 이미지 해상도로 단면/스프레드 크기 확정
       const dim = await getImageSize(currentPages[0]);
-      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2; BOOK_H = PAGE_H;
-      applyCSSVars(); // CSS에 반영 (#flip 폭/높이 갱신)
+      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2;
+      CONTENT_W = BOOK_W; // 기본은 스프레드
+      applyCSSVars();
 
-      // 2) PageFlip을 원본 픽셀로 고정 생성(해상도 저하 방지)
-      initFlip(currentPages);
+      // 현재 뷰포트에 맞게 모드 결정 & 초기화
+      isSinglePageMode = computeSinglePageMode();
+      CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
+      applyCSSVars();
+      initFlip(currentPages, isSinglePageMode);
 
-      // 3) 가운데 정렬 및 초기 배율(화면에 맞춤 또는 100%)
+      // 가운데 정렬 & 초기 배율
       fitToViewportOr100();
 
       setStatus('Ready');
+      requestAnimationFrame(fitTitle);
     }catch(e){
       console.error(e);
       setStatus('로드 오류: ' + (e.message || e));
@@ -361,52 +418,24 @@
   // 우클릭 방지
   document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
 
-   // 제목 텍스트를 박스 폭에 자동 맞춤 (최소 11px)
+  // ===== 제목 자동 맞춤 =====
   function fitTitle() {
     const box = document.querySelector('.titleBox');
     const text = document.getElementById('bookTitle');
     if (!box || !text) return;
-
-    // 초기값(클램프 상한)으로 리셋 후 점진 축소
-    text.style.fontSize = ''; // CSS clamp 우선
+    text.style.fontSize = '';
     const style = getComputedStyle(text);
     let size = parseFloat(style.fontSize);
     const minSize = 11;
-
-    // 박스 내부 가용 폭
     const available = box.clientWidth;
-
-    // 너무 커서 넘치면 0.5px 단위로 줄임
-    let guard = 100; // 무한루프 방지
+    let guard = 120;
     while (text.scrollWidth > available && size > minSize && guard-- > 0) {
       size = Math.max(minSize, size - 0.5);
       text.style.fontSize = size + 'px';
     }
-    // 마지막 안전장치: 그래도 넘치면 ellipsis로 처리(기본 CSS가 담당)
   }
-
-  // 초기 데이터 로드/제목 설정 후 호출
-  function afterBookReady(){
-    fitTitle();
-  }
-
-  // 기존 Ready 직후에 한 번 호출
-  // setStatus('Ready'); 다음 줄 등 적당한 위치에 호출해도 됩니다.
-  const _origSetStatus = setStatus;
-  window.setStatus = function(msg){
-    _origSetStatus(msg);
-    if (msg === 'Ready') {
-      // 레이아웃이 안정된 다음 프레임에 실행
-      requestAnimationFrame(fitTitle);
-    }
-  };
-
-  // 창 크기 변경 시 디바운스하여 재적용
   let _fitTimer = null;
-  window.addEventListener('resize', () => {
-    clearTimeout(_fitTimer);
-    _fitTimer = setTimeout(fitTitle, 120);
-  });  
+  function fitTitleDebounced(){ clearTimeout(_fitTimer); _fitTimer = setTimeout(fitTitle, 120); }
 </script>
 </body>
 </html>
