@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Monthly Art – Flipbook</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- PageFlip -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/page-flip/dist/css/page-flip.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
+  <style>
+    :root { --bg:#0b0c10; --panel:#151821; --text:#e9eef6; --muted:#9aa3b2; --accent:#46b3ff; }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#0d1017,#0b0c10);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
+    .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px}
+    .toolbar,.footer{background:#151821cc;backdrop-filter:blur(6px);padding:10px 12px;display:flex;align-items:center;gap:10px;border-block:1px solid #222938}
+    .spacer{flex:1}
+    .btn{border:1px solid #2a3143;background:#1a1f2c;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+    .field{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3143;border-radius:10px;padding:6px 10px;background:#101522}
+    .range{width:160px;accent-color:var(--accent)}
+    .hint{color:var(--muted);font-size:13px}
+    #flip{position:relative;width:min(95vw,1400px);height:min(85vh,900px);margin:auto;transition:transform .2s}
+    input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
+    #status{font-weight:600}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <div class="field"><span id="bookTitle" style="font-weight:700">Monthly Art – Flipbook</span></div>
+    <div class="spacer"></div>
+    <div id="status" class="hint">Loading…</div>
+    <button id="prev" class="btn">◀ Prev</button>
+    <div class="field">
+      <span>Page</span>
+      <input id="page" type="number" min="1" value="1">
+      <span id="total">/ 0</span>
+    </div>
+    <button id="next" class="btn">Next ▶</button>
+    <div class="field">
+      <span>Zoom</span>
+      <input id="zoom" class="range" type="range" min="50" max="160" value="100">
+      <span id="zoomLbl">100%</span>
+    </div>
+    <label class="field" title="양면/단면 전환"><input id="spread" type="checkbox" checked> Spread</label>
+    <button id="fs" class="btn" title="전체화면">⛶ Full</button>
+  </div>
+
+  <div style="position:relative;display:grid;place-items:center;overflow:hidden">
+    <div id="flip"></div>
+  </div>
+
+  <div class="footer" style="justify-content:space-between">
+    <div class="hint">매니페스트(JSON)에서 이미지 목록을 불러옵니다. 다른 호는 <code>?manifest=...</code>로 지정하세요.</div>
+    <div class="hint">오류가 나면 브라우저 콘솔을 확인하세요(네트워크, CORS, 경로 등).</div>
+  </div>
+</div>
+
+<script>
+  // ===== 기본 매니페스트 경로(상대경로) =====
+  const DEFAULT_MANIFEST = "./manifest.json";
+
+  // ===== 쿼리 파라미터로 매니페스트 지정 가능 =====
+  const qp = new URLSearchParams(location.search);
+  const manifestArg = qp.get("manifest") || DEFAULT_MANIFEST;
+
+  // ===== UI 엘리먼트 =====
+  const flipRoot = document.getElementById('flip');
+  const bookTitleEl = document.getElementById('bookTitle');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const pageInput = document.getElementById('page');
+  const totalEl = document.getElementById('total');
+  const zoom = document.getElementById('zoom');
+  const zoomLbl = document.getElementById('zoomLbl');
+  const spreadToggle = document.getElementById('spread');
+  const fsBtn = document.getElementById('fs');
+  const statusEl = document.getElementById('status');
+
+  let pageFlip = null;
+  function setStatus(msg){ statusEl.textContent = msg; }
+
+  function naturalSort(a,b){
+    const coll = new Intl.Collator(undefined, { numeric:true, sensitivity:'base' });
+    return coll.compare(a,b);
+  }
+
+  function toAbs(urlLike, baseHref){
+    try { return new URL(urlLike, baseHref).href; } catch { return urlLike; }
+  }
+
+  function setZoom(v){
+    zoomLbl.textContent = v + '%';
+    flipRoot.style.transform = `scale(${v/100})`;
+    flipRoot.style.transformOrigin = 'center center';
+  }
+
+  function initFlip(imageURLs, useSpread=true){
+    flipRoot.innerHTML = '';
+    if(pageFlip){ pageFlip.destroy(); pageFlip=null; }
+    pageFlip = new St.PageFlip(flipRoot, {
+      width: 820, height: 1158,              // A4 비율 근사
+      size: "stretch",
+      minWidth: 380, maxWidth: 1800,
+      minHeight: 400, maxHeight: 2000,
+      usePortrait: !useSpread,
+      showCover: true,
+      maxShadowOpacity: .2,
+      mobileScrollSupport: true,
+    });
+    pageFlip.loadFromImages(imageURLs);
+    totalEl.textContent = `/ ${imageURLs.length}`;
+    pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
+    pageFlip.on('flip', e => { pageInput.value = e.data + 1; });
+  }
+
+  async function fetchManifest(url){
+    setStatus(`Fetching manifest: ${url}`);
+    const res = await fetch(url, { cache: 'no-store' });
+    if(!res.ok){
+      const msg = `HTTP ${res.status} ${res.statusText} (manifest)\nURL: ${res.url}`;
+      setStatus(msg); throw new Error(msg);
+    }
+    try {
+      return await res.json();
+    } catch (e) {
+      setStatus('manifest JSON 파싱 실패'); throw e;
+    }
+  }
+
+  function normalizeManifest(manifest, manifestUrl){
+    // 형태 (A): 배열 → pages로 정규화
+    if (Array.isArray(manifest)) {
+      const pages = [...manifest].sort(naturalSort).map(p => toAbs(p, manifestUrl));
+      return { title: 'Monthly Art – Flipbook', pages, spread: true };
+    }
+    // 형태 (B): 객체
+    if (manifest && Array.isArray(manifest.pages)) {
+      const base = manifest.base ? toAbs(manifest.base, manifestUrl) : manifestUrl;
+      const pages = manifest.pages.map(p => toAbs(p, base)).sort(naturalSort);
+      return {
+        title: manifest.title || 'Monthly Art – Flipbook',
+        pages,
+        spread: manifest.spread !== undefined ? !!manifest.spread : true
+      };
+    }
+    throw new Error('지원하지 않는 manifest 형식입니다.');
+  }
+
+  // 컨트롤
+  prevBtn.addEventListener('click', ()=>pageFlip?.flipPrev());
+  nextBtn.addEventListener('click', ()=>pageFlip?.flipNext());
+  pageInput.addEventListener('change', ()=>{
+    if(!pageFlip) return;
+    const n = Math.max(1, Math.min(parseInt(pageInput.value||'1',10), pageFlip.getPageCount()));
+    pageFlip.flip(n-1); pageInput.value = n;
+  });
+  zoom.addEventListener('input', ()=>setZoom(parseInt(zoom.value,10)));
+  setZoom(parseInt(zoom.value,10));
+  spreadToggle.addEventListener('change', ()=>{
+    if(!pageFlip) return;
+    const idx = pageFlip.getCurrentPageIndex();
+    initFlip(currentPages, spreadToggle.checked);
+    pageFlip.flip(idx);
+  });
+  fsBtn.addEventListener('click', ()=>{
+    const el = flipRoot;
+    if(!document.fullscreenElement){
+      (el.requestFullscreen || el.webkitRequestFullscreen || document.documentElement.requestFullscreen).call(el);
+    } else {
+      (document.exitFullscreen || document.webkitExitFullscreen || document.cancelFullscreen).call(document);
+    }
+  });
+
+  let currentPages = [];
+
+  (async ()=>{
+    try{
+      const absManifestUrl = toAbs(manifestArg, location.href);
+      const raw = await fetchManifest(absManifestUrl);
+      const normalized = normalizeManifest(raw, absManifestUrl);
+
+      bookTitleEl.textContent = normalized.title || 'Monthly Art – Flipbook';
+      currentPages = normalized.pages;
+
+      if (!currentPages.length) { setStatus('manifest에 페이지가 없습니다.'); return; }
+
+      // 혼합콘텐츠 경고
+      const pageUrl = new URL(location.href);
+      const anyHttp = currentPages.some(u => u.startsWith('http://'));
+      if (pageUrl.protocol === 'https:' && anyHttp) {
+        setStatus('경고: https 페이지에서 http 이미지를 불러오면 차단될 수 있습니다.');
+      }
+
+      setStatus(`Pages: ${currentPages.length} (initializing)`);
+      initFlip(currentPages, normalized.spread);
+      spreadToggle.checked = !!normalized.spread;
+      setStatus('Ready');
+    }catch(e){
+      console.error(e);
+      setStatus('로드 오류: ' + (e.message || e));
+    }
+  })();
+</script>
+</body>
+</html>

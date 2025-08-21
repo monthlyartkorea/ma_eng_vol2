@@ -1,0 +1,6 @@
+{
+  "title": "Monthly Art – English Issue (Sep 2025)",
+  "base": "./pages/",
+  "pages": ["001.jpg", "002.jpg", "003.jpg"],
+  "spread": true
+}
