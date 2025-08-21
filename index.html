@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>Monthly Art Vol.2 - Boiling Point</title>
+  <title>Monthly Art Vol.2 - Boiling Point: Emerging Artists & Spaces in Seoul</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <!-- PageFlip -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/page-flip/dist/css/page-flip.min.css">
@@ -40,7 +40,7 @@
       <input id="zoom" class="range" type="range" min="50" max="160" value="100">
       <span id="zoomLbl">100%</span>
     </div>
-    <label class="field" title="양면/단면 전환"><input id="spread" type="checkbox" checked> Spread</label>
+    <!--<label class="field" title="양면/단면 전환"><input id="spread" type="checkbox" checked> Spread</label>**-->
     <button id="fs" class="btn" title="전체화면">⛶ Full</button>
   </div>
 
@@ -49,7 +49,7 @@
   </div>
 
   <div class="footer" style="justify-content:space-between">
-    <div class="hint">ⓒ Wolganmisool Publications, Inc.</div>
+    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved.</div>
     <div class="hint"></div>
   </div>
 </div>
@@ -97,7 +97,7 @@
     flipRoot.innerHTML = '';
     if(pageFlip){ pageFlip.destroy(); pageFlip=null; }
     pageFlip = new St.PageFlip(flipRoot, {
-      width: 820, height: 1158,              // A4 비율 근사
+      width: 1240, height: 1624,              // jpg 파일 실제크기
       size: "stretch",
       minWidth: 380, maxWidth: 1800,
       minHeight: 400, maxHeight: 2000,
