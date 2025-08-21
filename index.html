@@ -62,4 +62,146 @@
 </div>
 
 <script>
-  // =
+  // ===== 기본 매니페스트 경로(상대경로) =====
+  const DEFAULT_MANIFEST = "./manifest.json";
+
+  // ===== 쿼리 파라미터로 매니페스트 지정 가능 =====
+  const qp = new URLSearchParams(location.search);
+  const manifestArg = qp.get("manifest") || DEFAULT_MANIFEST;
+
+  // ===== UI 엘리먼트 =====
+  const flipRoot = document.getElementById('flip');
+  const bookTitleEl = document.getElementById('bookTitle');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const pageInput = document.getElementById('page');
+  const totalEl = document.getElementById('total');
+  const zoom = document.getElementById('zoom');
+  const zoomLbl = document.getElementById('zoomLbl');
+  const fsBtn = document.getElementById('fs');
+  const statusEl = document.getElementById('status');
+
+  let pageFlip = null;
+  function setStatus(msg){ statusEl.textContent = msg; }
+
+  function naturalSort(a,b){
+    const coll = new Intl.Collator(undefined, { numeric:true, sensitivity:'base' });
+    return coll.compare(a,b);
+  }
+
+  function toAbs(urlLike, baseHref){
+    try { return new URL(urlLike, baseHref).href; } catch { return urlLike; }
+  }
+
+  function setZoom(v){
+    zoomLbl.textContent = v + '%';
+    flipRoot.style.transform = `scale(${v/100})`;
+    flipRoot.style.transformOrigin = 'center center';
+  }
+
+  // === 항상 스프레드 모드(usePortrait:false)로 초기화 ===
+  function initFlip(imageURLs){
+    flipRoot.innerHTML = '';
+    if(pageFlip){ pageFlip.destroy(); pageFlip=null; }
+    pageFlip = new St.PageFlip(flipRoot, {
+      width: 1240, height: 1624,              // 원본 비율에 맞춤
+      size: "stretch",
+      minWidth: 380, maxWidth: 1800,
+      minHeight: 400, maxHeight: 2000,
+      usePortrait: false,                     // ← 단면 금지(항상 스프레드)
+      showCover: true,                        // 표지는 단면로 보여주고 곧바로 스프레드
+      maxShadowOpacity: .2,
+      mobileScrollSupport: true,
+    });
+    pageFlip.loadFromImages(imageURLs);
+    totalEl.textContent = `/ ${imageURLs.length}`;
+    pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
+    pageFlip.on('flip', e => { pageInput.value = e.data + 1; });
+  }
+
+  async function fetchManifest(url){
+    setStatus(`Fetching manifest: ${url}`);
+    const res = await fetch(url, { cache: 'no-store' });
+    if(!res.ok){
+      const msg = `HTTP ${res.status} ${res.statusText} (manifest)\nURL: ${res.url}`;
+      setStatus(msg); throw new Error(msg);
+    }
+    try {
+      return await res.json();
+    } catch (e) {
+      setStatus('manifest JSON 파싱 실패'); throw e;
+    }
+  }
+
+  function normalizeManifest(manifest, manifestUrl){
+    if (Array.isArray(manifest)) {
+      const pages = [...manifest].sort(naturalSort).map(p => toAbs(p, manifestUrl));
+      return { title: 'Monthly Art – Flipbook', pages };
+    }
+    if (manifest && Array.isArray(manifest.pages)) {
+      const base = manifest.base ? toAbs(manifest.base, manifestUrl) : manifestUrl;
+      const pages = manifest.pages.map(p => toAbs(p, base)).sort(naturalSort);
+      return { title: manifest.title || 'Monthly Art – Flipbook', pages };
+    }
+    throw new Error('지원하지 않는 manifest 형식입니다.');
+  }
+
+  // 컨트롤
+  prevBtn.addEventListener('click', ()=>pageFlip?.flipPrev());
+  nextBtn.addEventListener('click', ()=>pageFlip?.flipNext());
+  pageInput.addEventListener('change', ()=>{
+    if(!pageFlip) return;
+    const n = Math.max(1, Math.min(parseInt(pageInput.value||'1',10), pageFlip.getPageCount()));
+    pageFlip.flip(n-1); pageInput.value = n;
+  });
+  zoom.addEventListener('input', ()=>setZoom(parseInt(zoom.value,10)));
+  setZoom(parseInt(zoom.value,10));
+  fsBtn.addEventListener('click', ()=>{
+    const el = flipRoot;
+    if(!document.fullscreenElement){
+      (el.requestFullscreen || el.webkitRequestFullscreen || document.documentElement.requestFullscreen).call(el);
+    } else {
+      (document.exitFullscreen || document.webkitExitFullscreen || document.cancelFullscreen).call(document);
+    }
+  });
+
+  let currentPages = [];
+
+  (async ()=>{
+    try{
+      const absManifestUrl = toAbs(manifestArg, location.href);
+      const raw = await fetchManifest(absManifestUrl);
+      const normalized = normalizeManifest(raw, absManifestUrl);
+
+      bookTitleEl.textContent = normalized.title || 'Monthly Art – Flipbook';
+      currentPages = normalized.pages;
+
+      if (!currentPages.length) { setStatus('manifest에 페이지가 없습니다.'); return; }
+
+      // 혼합콘텐츠 경고
+      const pageUrl = new URL(location.href);
+      const anyHttp = currentPages.some(u => u.startsWith('http://'));
+      if (pageUrl.protocol === 'https:' && anyHttp) {
+        setStatus('경고: https 페이지에서 http 이미지를 불러오면 차단될 수 있습니다.');
+      }
+
+      setStatus(`Pages: ${currentPages.length} (initializing)`);
+      initFlip(currentPages);
+      setStatus('Ready');
+    }catch(e){
+      console.error(e);
+      setStatus('로드 오류: ' + (e.message || e));
+    }
+  })();
+
+  // (1) 마우스 우클릭 방지
+  document.addEventListener('contextmenu', (e) => {
+    // 특정 영역만 막고 싶으면 e.target.closest('#flip') 조건으로 한정하세요.
+    e.preventDefault();
+  }, { capture: true });
+
+  // (선택) 이미지 드래그 저장 억제 — 필요 시 주석 해제
+  // document.addEventListener('dragstart', (e) => e.preventDefault(), { capture: true });
+</script>
+</body>
+</html>
