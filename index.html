@@ -1,476 +1,401 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <title>Monthly Art Vol.2 - Boiling Point: Emerging Artists & Spaces in Seoul</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!-- PageFlip -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/page-flip/dist/css/page-flip.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
-  <style>
-    :root{
-      --bg:#0b0c10; --panel:#151821; --text:#e9eef6; --muted:#9aa3b2; --accent:#46b3ff; --paper-dark:#0e1117;
-      --page-w:1240px; --page-h:1624px; --book-w:2480px; --content-w:2480px;
-    }
-    html,body{height:100%;margin:0;background:linear-gradient(180deg,#0d1017,#0b0c10);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
-    .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px}
-    .toolbar,.footer{background:#151821cc;backdrop-filter:blur(6px);padding:10px 12px;display:flex;align-items:center;gap:10px;border-block:1px solid #222938}
-    .spacer{flex:1}
-    .btn{border:1px solid #2a3143;background:#1a1f2c;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
-    .field{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3143;border-radius:10px;padding:6px 10px;background:#101522}
-    .range{width:160px;accent-color:var(--accent)}
-    .hint{color:var(--muted);font-size:13px}
+  <meta charset="utf-8" />
+  <title>Monthly Art Vol.2 - Boiling Point: Emerging Artists & Spaces in Seoul</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/page-flip/dist/css/page-flip.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
 
-    /* 뷰포트/줌 레이어 */
-    #viewer{position:relative;display:grid;place-items:center;overflow:hidden;touch-action:none;background:transparent;}
-    #zoomLayer{
-      position:relative;width:fit-content;height:fit-content;
-      transform-origin:0 0; cursor:grab; user-select:none; background:var(--paper-dark);
-      /* 모던 iOS/안드에서 핀치/팬 전담 */
-      touch-action:none;
-    }
-    #zoomLayer.dragging{cursor:grabbing;}
-
-    /* PageFlip 컨테이너: 현재 모드 폭으로 고정 */
-    #flip{
-      position:relative; width:var(--content-w); height:var(--page-h);
-      transition:none; background:var(--paper-dark);
-    }
-    .stf__canvas, .stf_canvas, #flip canvas { background:var(--paper-dark) !important; }
-
-    input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
-    #status{font-weight:600}
-
-    /* 제목 박스 */
-    .titleBox{
-      min-width:0; max-width:clamp(160px, 45vw, 720px);
-      display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-height:35px;
-    }
-    .titleText{
-      font-weight:700; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      font-size:clamp(12px,1.6vw,16px); line-height:1.1; min-width:0;
-    }
-
-    /* 모바일(좁은 폭) 상단 메뉴 간소화 */
-    @media (max-width: 900px){
-      .titleBox, #status, #pageGroup, #zoomGroup, .spacer { display:none !important; }
-    }
-    @media (max-width: 640px){
-      .toolbar .btn, .toolbar .field { padding: 4px 8px; }
-      .toolbar .range { width: 120px; }
-    }
-  </style>
+  <style>
+    :root{
+      --bg:#0b0c10; --panel:#151821; --text:#e9eef6; --muted:#9aa3b2; --accent:#46b3ff; --paper-dark:#0e1117;
+      --page-w:1240px; --page-h:1624px; --book-w:2480px; --content-w:2480px;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#0d1017,#0b0c10);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
+   .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px}
+   .toolbar,.footer{background:#151821cc;backdrop-filter:blur(6px);padding:10px 12px;display:flex;align-items:center;gap:10px;border-block:1px solid #222938}
+   .spacer{flex:1}
+   .btn{border:1px solid #2a3143;background:#1a1f2c;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+   .field{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3143;border-radius:10px;padding:6px 10px;background:#101522}
+   .range{width:160px;accent-color:var(--accent)}
+   .hint{color:var(--muted);font-size:13px}
+  
+    /* 뷰포트/줌 레이어 */
+    #viewer{position:relative;display:grid;place-items:center;overflow:hidden;touch-action:none;background:transparent;}
+    #zoomLayer{
+      position:relative; width:fit-content; height:fit-content;
+      transform-origin:0 0; cursor:grab; user-select:none; background:var(--paper-dark);
+      /* Panzoom이 터치 이벤트를 처리하도록 touch-action: none;을 유지 */
+      touch-action:none;
+    }
+    #zoomLayer.dragging{cursor:grabbing;}
+  
+    /* PageFlip 컨테이너: 현재 모드 폭으로 고정 */
+    #flip{
+      position:relative; width:var(--content-w); height:var(--page-h);
+      transition:none; background:var(--paper-dark);
+    }
+   .stf__canvas,.stf_canvas, #flip canvas { background:var(--paper-dark)!important; }
+  
+    input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
+    #status{font-weight:600}
+  
+    /* 제목 박스 */
+   .titleBox{
+      min-width:0; max-width:clamp(160px, 45vw, 720px);
+      display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-height:35px;
+    }
+   .titleText{
+      font-weight:700; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-size:clamp(12px,1.6vw,16px); line-height:1.1; min-width:0;
+    }
+  
+    /* 모바일(좁은 폭) 상단 메뉴 간소화 */
+    @media (max-width: 900px){
+     .titleBox, #status, #pageGroup, #zoomGroup,.spacer { display:none!important; }
+    }
+    @media (max-width: 640px){
+     .toolbar.btn,.toolbar.field { padding: 4px 8px; }
+     .toolbar.range { width: 120px; }
+    }
+  </style>
 </head>
 <body>
 <div class="app">
-  <div class="toolbar">
-    <div class="field titleBox"><span id="bookTitle" class="titleText">Boiling Point: Emerging Artists & Spaces in Korea</span></div>
-    <div class="spacer"></div>
-    <div id="status" class="hint">Loading…</div>
-
-    <button id="prev" class="btn">◀ Prev</button>
-
-    <div id="pageGroup" class="field">
-      <span>Page</span>
-      <input id="page" type="number" min="1" value="1">
-      <span id="total">/ 0</span>
-    </div>
-
-    <button id="next" class="btn">Next ▶</button>
-
-    <div id="zoomGroup" class="field">
-      <span>Zoom</span>
-      <input id="zoom" class="range" type="range" min="25" max="400" value="100">
-      <span id="zoomLbl">100%</span>
-    </div>
-
-    <button id="fs" class="btn" title="전체화면">⛶ Full</button>
-  </div>
-
-  <div id="viewer">
-    <div id="zoomLayer">
-      <div id="flip"></div>
-    </div>
-  </div>
-
-  <div class="footer" style="justify-content:space-between">
-    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved.</div>
-    <div class="hint"></div>
-  </div>
+  <div class="toolbar">
+    <div class="field titleBox"><span id="bookTitle" class="titleText">Boiling Point: Emerging Artists & Spaces in Korea</span></div>
+    <div class="spacer"></div>
+    <div id="status" class="hint">Loading…</div>
+  
+    <button id="prev" class="btn">◀ Prev</button>
+  
+    <div id="pageGroup" class="field">
+      <span>Page</span>
+      <input id="page" type="number" min="1" value="1">
+      <span id="total">/ 0</span>
+    </div>
+  
+    <button id="next" class="btn">Next ▶</button>
+  
+    <div id="zoomGroup" class="field">
+      <span>Zoom</span>
+      <input id="zoom" class="range" type="range" min="25" max="400" value="100">
+      <span id="zoomLbl">100%</span>
+    </div>
+  
+    <button id="fs" class="btn" title="전체화면">⛶ Full</button>
+  </div>
+  
+  <div id="viewer">
+    <div id="zoomLayer">
+      <div id="flip"></div>
+    </div>
+  </div>
+  
+  <div class="footer" style="justify-content:space-between">
+    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved.</div>
+    <div class="hint"></div>
+  </div>
 </div>
-
+  
 <script>
-  const DEFAULT_MANIFEST = "./manifest.json";
-  const qp = new URLSearchParams(location.search);
-  const manifestArg = qp.get("manifest") || DEFAULT_MANIFEST;
+  const DEFAULT_MANIFEST = "./manifest.json";
+  const qp = new URLSearchParams(location.search);
+  const manifestArg = qp.get("manifest") |
 
-  const viewer = document.getElementById('viewer');
-  const zoomLayer = document.getElementById('zoomLayer');
-  const flipRoot = document.getElementById('flip');
-  const bookTitleEl = document.getElementById('bookTitle');
-  const prevBtn = document.getElementById('prev');
-  const nextBtn = document.getElementById('next');
-  const pageInput = document.getElementById('page');
-  const totalEl = document.getElementById('total');
-  const zoomRange = document.getElementById('zoom');
-  const zoomLbl = document.getElementById('zoomLbl');
-  const fsBtn = document.getElementById('fs');
-  const statusEl = document.getElementById('status');
+| DEFAULT_MANIFEST;
+  
+  const viewer = document.getElementById('viewer');
+  const zoomLayer = document.getElementById('zoomLayer');
+  const flipRoot = document.getElementById('flip');
+  const bookTitleEl = document.getElementById('bookTitle');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const pageInput = document.getElementById('page');
+  const totalEl = document.getElementById('total');
+  const zoomRange = document.getElementById('zoom');
+  const zoomLbl = document.getElementById('zoomLbl');
+  const fsBtn = document.getElementById('fs');
+  const statusEl = document.getElementById('status');
+  
+  let pageFlip = null;
+  let currentPages =;
+  
+  // 원본 단면 크기 — 첫 이미지로 자동 감지
+  let PAGE_W = 1240, PAGE_H = 1624;
+  let BOOK_W = PAGE_W * 2;
+  
+  // 반응형 모드
+  const MOBILE_BREAKPOINT = 900;
+  let isSinglePageMode = false;     // true=단면(모바일), false=스프레드(PC)
+  let CONTENT_W = BOOK_W;
+  
+  // === Panzoom 인스턴스 초기화 ===
+  // 기존의 복잡한 줌/패닝 관련 변수(scale, tx, ty 등)와 로직을 제거하고,
+  // Panzoom 라이브러리에 위임합니다.
+  const panzoom = Panzoom(zoomLayer, {
+    maxScale: 4, // 최대 줌인 배율
+    minScale: 0.25, // 최소 줌아웃 배율
+    startScale: 'fit', // 초기 렌더링 시 뷰포트에 맞춤
+    excludeClass: 'panzoom-exclude', // 드래그를 막을 클래스 (플립북 캔버스)
+    touch: true,
+    overflow: 'hidden'
+  });
+  
+  function setStatus(msg){ statusEl.textContent = msg; }
+  function naturalSort(a,b){ const c = new Intl.Collator(undefined,{numeric:true,sensitivity:'base'}); return c.compare(a,b); }
+  function toAbs(urlLike, baseHref){ try { return new URL(urlLike, baseHref).href; } catch { return urlLike; } }
+  function isTextInputFocused(){
+    const ae = document.activeElement;
+    return!!ae && (ae.tagName === 'INPUT' |
 
-  let pageFlip = null;
-  let currentPages = [];
-  let gestureHadPinch = false;
+| ae.tagName === 'TEXTAREA' |
+| ae.isContentEditable);
+  }
+  
+  function applyCSSVars(){
+    const root = document.documentElement;
+    root.style.setProperty('--page-w', PAGE_W + 'px');
+    root.style.setProperty('--page-h', PAGE_H + 'px');
+    root.style.setProperty('--book-w', BOOK_W + 'px');
+    root.style.setProperty('--content-w', CONTENT_W + 'px');
+  }
+  
+  function getImageSize(url){
+    return new Promise((resolve, reject)=>{
+      const img = new Image();
+      img.onload = ()=>resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+  
+  // PageFlip 초기화 (모드 기반)
+  function initFlip(imageURLs, forcePortrait){
+    flipRoot.innerHTML = '';
+    if (pageFlip){ pageFlip.destroy(); pageFlip = null; }
+    const portrait =!!forcePortrait;
+    pageFlip = new St.PageFlip(flipRoot, {
+      width: PAGE_W, height: PAGE_H,
+      size: "fixed",
+      minWidth: PAGE_W, maxWidth: PAGE_W,
+      minHeight: PAGE_H, maxHeight: PAGE_H,
+      usePortrait: portrait,              // 단면/스프레드
+      showCover: portrait? false : true, // ← 단면에선 cover 비활성화(Prev 문제 해결)
+      maxShadowOpacity:.2,
+      mobileScrollSupport: false,         // ← 우리 포인터핸들러만 사용
+      disableFlipByClick: true            // ← 내부 클릭/스와이프 비활성화
+    });
+    pageFlip.loadFromImages(imageURLs);
+    totalEl.textContent = `/ ${imageURLs.length}`;
+    pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
+    pageFlip.on('flip', e => { pageInput.value = e.data + 1; });
+  }
+  
+  // manifest
+  async function fetchManifest(url){
+    setStatus(`Fetching manifest: ${url}`);
+    const res = await fetch(url, { cache: 'no-store' });
+    if(!res.ok){ const msg = `HTTP ${res.status} ${res.statusText} (manifest)\nURL: ${res.url}`; setStatus(msg); throw new Error(msg); }
+    try { return await res.json(); } catch(e){ setStatus('manifest JSON 파싱 실패'); throw e; }
+  }
+  function normalizeManifest(manifest, manifestUrl){
+    if (Array.isArray(manifest)) {
+      const pages = [...manifest].sort(naturalSort).map(p => toAbs(p, manifestUrl));
+      return { title: 'Monthly Art – Flipbook', pages };
+    }
+    if (manifest && Array.isArray(manifest.pages)) {
+      const base = manifest.base? toAbs(manifest.base, manifestUrl) : manifestUrl;
+      const pages = manifest.pages.map(p => toAbs(p, base)).sort(naturalSort);
+      return { title: manifest.title |
 
-  // 원본 단면 크기 — 첫 이미지로 자동 감지
-  let PAGE_W = 1240, PAGE_H = 1624;
-  let BOOK_W = PAGE_W * 2;
+| 'Monthly Art – Flipbook', pages };
+    }
+    throw new Error('지원하지 않는 manifest 형식입니다.');
+  }
+  
+  // 모드 전환
+  function computeSinglePageMode(){
+    return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+  }
+  function applyModeInit(){
+    isSinglePageMode = computeSinglePageMode();
+    CONTENT_W = isSinglePageMode? PAGE_W : BOOK_W;
+    applyCSSVars();
+    initFlip(currentPages, isSinglePageMode);
+    panzoom.reset({ animate: false }); // Panzoom으로 뷰포트에 맞춤
+  }
+  function applyModeOnResize(){
+    const nextSingle = computeSinglePageMode();
+    if (nextSingle!== isSinglePageMode){
+      const idx = pageFlip? pageFlip.getCurrentPageIndex() : 0;
+      isSinglePageMode = nextSingle;
+      CONTENT_W = isSinglePageMode? PAGE_W : BOOK_W;
+      applyCSSVars();
+      initFlip(currentPages, isSinglePageMode);
+      pageFlip.flip(idx);
+      panzoom.reset({ animate: false }); // Panzoom으로 뷰포트에 맞춤
+    }else{
+      CONTENT_W = isSinglePageMode? PAGE_W : BOOK_W;
+      applyCSSVars();
+      panzoom.reset({ animate: false }); // Panzoom으로 뷰포트에 맞춤
+    }
+  }
+  
+  // === Panzoom 이벤트 핸들러 ===
+  // Panzoom 라이브러리가 줌/패닝을 처리하므로, 기존의 복잡한 Pointer Events 로직을 제거하고
+  // Panzoom 인스턴스에 직접 연결합니다.
+  
+  // 휠 줌 (데스크톱)
+  viewer.addEventListener('wheel', panzoom.zoomWithWheel);
+  
+  // Panzoom 줌 상태 업데이트
+  panzoom.on('zoom', (event) => {
+    const scale = event.detail.scale;
+    zoomRange.value = Math.round(scale * 100);
+    zoomLbl.textContent = `${Math.round(scale * 100)}%`;
+  });
+  
+  // 터치 이벤트를 플립북으로 전달하는 Panzoom 기능은 없으므로,
+  // PageFlip의 클릭-드래그 방지 옵션(disableFlipByClick)은 그대로 유지하고
+  // 아래의 커스텀 탭 로직으로 페이지 넘김을 처리합니다.
+  
+  // 터치/클릭으로 페이지 넘기기 (Panzoom이 아닌 별도의 로직)
+  let lastTouch = { x: 0, y: 0, t: 0 };
+  viewer.addEventListener('pointerdown', (e) => {
+    lastTouch = { x: e.clientX, y: e.clientY, t: performance.now() };
+  }, { capture: true });
+  
+  viewer.addEventListener('pointerup', (e) => {
+    const currentScale = panzoom.getScale();
+    const dx = e.clientX - lastTouch.x;
+    const dy = e.clientY - lastTouch.y;
+    const dist = Math.hypot(dx, dy);
+    const dt = performance.now() - lastTouch.t;
+  
+    // 탭 판정 (짧고 작은 이동) + 줌 상태가 아님
+    if (dist < 10 && dt < 300 && currentScale <= 1) {
+      const rect = viewer.getBoundingClientRect();
+      const xRel = (e.clientX - rect.left) / rect.width;
+      if (xRel <= 0.22) { // 왼쪽 22% 영역
+        pageFlip?.flipPrev();
+      } else if (xRel >= 1 - 0.22) { // 오른쪽 22% 영역
+        pageFlip?.flipNext();
+      }
+    }
+  });
+  
+  // 컨트롤 버튼
+  prevBtn.addEventListener('click', ()=>pageFlip?.flipPrev());
+  nextBtn.addEventListener('click', ()=>pageFlip?.flipNext());
+  pageInput.addEventListener('change', ()=>{
+    if(!pageFlip) return;
+    const n = Math.max(1, Math.min(parseInt(pageInput.value||'1',10), pageFlip.getPageCount()));
+    pageFlip.flip(n-1); pageInput.value = n;
+  });
+  
+  // Panzoom과 연결
+  zoomRange.addEventListener('input', ()=> {
+    panzoom.zoom(parseInt(zoomRange.value, 10) / 100, { animate: false });
+  });
+  fsBtn.addEventListener('click', ()=>{
+    const el = viewer;
+    if(!document.fullscreenElement){
+      (el.requestFullscreen |
 
-  // 반응형 모드
-  const MOBILE_BREAKPOINT = 900;
-  let isSinglePageMode = false;     // true=단면(모바일), false=스프레드(PC)
-  let CONTENT_W = BOOK_W;
+| el.webkitRequestFullscreen |
+| document.documentElement.requestFullscreen).call(el);
+    } else {
+      (document.exitFullscreen |
 
-  // 줌/패닝
-  const MIN_SCALE = 0.25, MAX_SCALE = 4.0;
-  let scale = 1, tx = 0, ty = 0;
+| document.webkitExitFullscreen |
+| document.cancelFullscreen).call(document);
+    }
+  });
+  
+  // 창 크기 변경
+  let _resizeTimer = null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(()=>{
+      applyModeOnResize();
+      panzoom.reset({ animate: false }); // Panzoom으로 뷰포트에 맞춤
+      fitTitleDebounced();
+    }, 120);
+  });
+  
+  // 초기 로드
+  (async ()=>{
+    try{
+      const absManifestUrl = toAbs(manifestArg, location.href);
+      const raw = await fetchManifest(absManifestUrl);
+      const normalized = normalizeManifest(raw, absManifestUrl);
+  
+      bookTitleEl.textContent = normalized.title |
 
-  // 탭/엣지 존 (탭만 페이지 넘김)
-  let EDGE_TAP_ZONE = 0.22;       // 좌/우 22%만 페이지 넘김
-  const TAP_MAX_DIST = 8;         // px
-  const TAP_MAX_MS = 300;         // ms
+| 'Monthly Art – Flipbook';
+      currentPages = normalized.pages;
+      if (!currentPages.length){ setStatus('manifest에 페이지가 없습니다.'); return; }
+  
+      const dim = await getImageSize(currentPages);
+      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2; CONTENT_W = BOOK_W;
+      applyCSSVars();
+  
+      applyModeInit(); // 단면/스프레드 초기화 & 맞춤
+      setStatus('Ready');
+      requestAnimationFrame(fitTitle);
+    }catch(e){
+      console.error(e);
+      setStatus('로드 오류: ' + (e.message |
 
-  function setStatus(msg){ statusEl.textContent = msg; }
-  function naturalSort(a,b){ const c = new Intl.Collator(undefined,{numeric:true,sensitivity:'base'}); return c.compare(a,b); }
-  function toAbs(urlLike, baseHref){ try { return new URL(urlLike, baseHref).href; } catch { return urlLike; } }
-  function isTextInputFocused(){
-    const ae = document.activeElement;
-    return !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
-  }
-
-  function applyCSSVars(){
-    const root = document.documentElement;
-    root.style.setProperty('--page-w', PAGE_W + 'px');
-    root.style.setProperty('--page-h', PAGE_H + 'px');
-    root.style.setProperty('--book-w', BOOK_W + 'px');
-    root.style.setProperty('--content-w', CONTENT_W + 'px');
-  }
-
-  function getImageSize(url){
-    return new Promise((resolve, reject)=>{
-      const img = new Image();
-      img.onload = ()=>resolve({ w: img.naturalWidth, h: img.naturalHeight });
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
-
-  // PageFlip 초기화 (모드 기반)
-  function initFlip(imageURLs, forcePortrait){
-    flipRoot.innerHTML = '';
-    if (pageFlip){ pageFlip.destroy(); pageFlip = null; }
-    const portrait = !!forcePortrait;
-    pageFlip = new St.PageFlip(flipRoot, {
-      width: PAGE_W, height: PAGE_H,
-      size: "fixed",
-      minWidth: PAGE_W, maxWidth: PAGE_W,
-      minHeight: PAGE_H, maxHeight: PAGE_H,
-      usePortrait: portrait,              // 단면/스프레드
-      showCover: portrait ? false : true, // ← 단면에선 cover 비활성화(Prev 문제 해결)
-      maxShadowOpacity: .2,
-      mobileScrollSupport: false,         // ← 우리 포인터핸들러만 사용
-      disableFlipByClick: true            // ← 내부 클릭/스와이프 비활성화
-    });
-    pageFlip.loadFromImages(imageURLs);
-    totalEl.textContent = `/ ${imageURLs.length}`;
-    pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
-    pageFlip.on('flip', e => { pageInput.value = e.data + 1; });
-  }
-
-  // manifest
-  async function fetchManifest(url){
-    setStatus(`Fetching manifest: ${url}`);
-    const res = await fetch(url, { cache: 'no-store' });
-    if(!res.ok){ const msg = `HTTP ${res.status} ${res.statusText} (manifest)\nURL: ${res.url}`; setStatus(msg); throw new Error(msg); }
-    try { return await res.json(); } catch(e){ setStatus('manifest JSON 파싱 실패'); throw e; }
-  }
-  function normalizeManifest(manifest, manifestUrl){
-    if (Array.isArray(manifest)) {
-      const pages = [...manifest].sort(naturalSort).map(p => toAbs(p, manifestUrl));
-      return { title: 'Monthly Art – Flipbook', pages };
-    }
-    if (manifest && Array.isArray(manifest.pages)) {
-      const base = manifest.base ? toAbs(manifest.base, manifestUrl) : manifestUrl;
-      const pages = manifest.pages.map(p => toAbs(p, base)).sort(naturalSort);
-      return { title: manifest.title || 'Monthly Art – Flipbook', pages };
-    }
-    throw new Error('지원하지 않는 manifest 형식입니다.');
-  }
-
-  // 모드 전환
-  function computeSinglePageMode(){
-    return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
-  }
-  function applyModeInit(){
-    isSinglePageMode = computeSinglePageMode();
-    CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
-    applyCSSVars();
-    initFlip(currentPages, isSinglePageMode);
-    fitToViewportOr100();
-  }
-  function applyModeOnResize(){
-    const nextSingle = computeSinglePageMode();
-    if (nextSingle !== isSinglePageMode){
-      const idx = pageFlip ? pageFlip.getCurrentPageIndex() : 0;
-      isSinglePageMode = nextSingle;
-      CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
-      applyCSSVars();
-      initFlip(currentPages, isSinglePageMode);
-      pageFlip.flip(idx);
-      fitToViewportOr100();
-    }else{
-      CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
-      applyCSSVars();
-      centerWithinViewport(); applyTransform();
-    }
-  }
-
-  // Zoom / Pan
-  function applyTransform(){
-    zoomLayer.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
-    zoomRange.value = Math.round(scale * 100);
-    zoomLbl.textContent = `${Math.round(scale * 100)}%`;
-  }
-  function centerWithinViewport(){
-    const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    const scaledW = CONTENT_W * scale;
-    const scaledH = PAGE_H     * scale;
-    if (scaledW <= vw) tx = (vw - scaledW) / 2; else tx = Math.min(0, Math.max(tx, vw - scaledW));
-    if (scaledH <= vh) ty = (vh - scaledH) / 2; else ty = Math.min(0, Math.max(ty, vh - scaledH));
-  }
-  function setScale(newScale, fx, fy){
-    const rect = viewer.getBoundingClientRect();
-    const cx = (fx !== undefined) ? fx : rect.width/2;
-    const cy = (fy !== undefined) ? fy : rect.height/2;
-
-    const prev = scale;
-    const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-
-    const px = (cx - tx) / prev;
-    const py = (cy - ty) / prev;
-
-    scale = next;
-    tx = cx - px * scale;
-    ty = cy - py * scale;
-
-    centerWithinViewport(); applyTransform();
-  }
-  function fitToViewportOr100(){
-    const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    const fit = Math.min(vw / CONTENT_W, vh / PAGE_H);
-    const startScale = Math.max(MIN_SCALE, Math.min(1, fit));
-    setScale(startScale);
-  }
-
-  // 컨트롤 버튼
-  prevBtn.addEventListener('click', ()=>pageFlip?.flipPrev());
-  nextBtn.addEventListener('click', ()=>pageFlip?.flipNext());
-  pageInput.addEventListener('change', ()=>{
-    if(!pageFlip) return;
-    const n = Math.max(1, Math.min(parseInt(pageInput.value||'1',10), pageFlip.getPageCount()));
-    pageFlip.flip(n-1); pageInput.value = n;
-  });
-  zoomRange.addEventListener('input', ()=> setScale(parseInt(zoomRange.value,10)/100) );
-  fsBtn.addEventListener('click', ()=>{
-    const el = viewer;
-    if(!document.fullscreenElement){
-      (el.requestFullscreen || el.webkitRequestFullscreen || document.documentElement.requestFullscreen).call(el);
-    } else {
-      (document.exitFullscreen || document.webkitExitFullscreen || document.cancelFullscreen).call(document);
-    }
-  });
-
-  // 휠 줌 (데스크톱)
-  viewer.addEventListener('wheel', (e)=>{
-    e.preventDefault(); e.stopPropagation();
-    const rect = viewer.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const factor = (e.deltaY < 0) ? 1.12 : 0.89;
-    setScale(scale * factor, x, y);
-  }, { passive:false });
-
-  // === Pointer Events (모바일/PC 공통) ===
-  const pointers = new Map();
-  let isDragging = false, dragLast = {x:0,y:0};
-  let pinchStartDist = 0, pinchStartScale = 1, pinchPrevCenter = {x:0,y:0};
-  let tapState = {}; // {id, x0,y0,t0}
-
-  function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
-  function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
-
-  // 캡처 단계에서 PageFlip로 이벤트 전달 차단
-  viewer.addEventListener('pointerdown', (e)=>{
-    e.preventDefault(); e.stopPropagation();
-    // 마우스는 좌클릭만 허용 (우/중클릭 드래그 차단)
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-
-    viewer.setPointerCapture(e.pointerId);
-    const r = viewer.getBoundingClientRect();
-    const p = { x:e.clientX - r.left, y:e.clientY - r.top };
-    pointers.set(e.pointerId, p);
-    tapState[e.pointerId] = { x0:p.x, y0:p.y, t0:performance.now() };
-
-    if (pointers.size === 1 && scale > 1){
-      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = p;
-    } else if (pointers.size === 2){
-      gestureHadPinch = true;
-      const [p1,p2] = [...pointers.values()];
-      pinchStartDist = dist(p1,p2); pinchStartScale = scale; pinchPrevCenter = mid(p1,p2);
-    }
-  }, { passive:false, capture:true });
-
-  viewer.addEventListener('pointermove', (e)=>{
-    e.preventDefault(); e.stopPropagation();
-    if (!pointers.has(e.pointerId)) return;
-    const r = viewer.getBoundingClientRect();
-    const cur = { x:e.clientX - r.left, y:e.clientY - r.top };
-    pointers.set(e.pointerId, cur);
-
-    if (pointers.size === 2){
-      gestureHadPinch = true;
-      const [a,b] = [...pointers.values()];
-      const d = Math.max(1, dist(a,b));
-      const c = mid(a,b);
-      const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchStartScale * (d / pinchStartDist)));
-      setScale(target, c.x, c.y);
-      tx += (c.x - pinchPrevCenter.x); ty += (c.y - pinchPrevCenter.y);
-      centerWithinViewport(); applyTransform();
-      pinchPrevCenter = c;
-    } else if (isDragging && scale > 1){
-      tx += (cur.x - dragLast.x); ty += (cur.y - dragLast.y);
-      dragLast = cur; centerWithinViewport(); applyTransform();
-    }
-  }, { passive:false, capture:true });
-
-  function onPointerEnd(e){
-    e.preventDefault(); e.stopPropagation();
-    const start = tapState[e.pointerId];
-    if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
-    if (start){
-      const r = viewer.getBoundingClientRect();
-      const end = { x:e.clientX - r.left, y:e.clientY - r.top, t:performance.now() };
-      const moved = Math.hypot(end.x - start.x0, end.y - start.y0);
-      const dt = end.t - start.t0;
-
-      // 탭 판정(짧고 작은 이동) + 확대 아님 + 핀치 흔적 없음
-      if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS && scale <= 1 && !gestureHadPinch){
-        const bookRect = flipRoot.getBoundingClientRect();
-        const insideX = (e.clientX >= bookRect.left && e.clientX <= bookRect.right);
-        const insideY = (e.clientY >= bookRect.top  && e.clientY <= bookRect.bottom);
-        if (insideX && insideY){
-          const xRel = (e.clientX - bookRect.left) / bookRect.width;
-          if (xRel <= EDGE_TAP_ZONE)       pageFlip?.flipPrev();
-          else if (xRel >= 1-EDGE_TAP_ZONE) pageFlip?.flipNext();
-        }
-      }
-      delete tapState[e.pointerId];
-    }
-
-    // 핀치 → 남은 한 손가락으로 즉시 드래그
-    if (pointers.size === 1 && scale > 1){
-      isDragging = true;
-      zoomLayer.classList.add('dragging');
-      dragLast = [...pointers.values()][0];
-    } else if (pointers.size === 0){
-      isDragging = false;
-      zoomLayer.classList.remove('dragging');
-      gestureHadPinch = false; // 초기화
-    }
-
-    if (pointers.size < 2) pinchStartDist = 0;
-  }
-
-  viewer.addEventListener('pointerup', onPointerEnd, { passive:false, capture:true });
-  viewer.addEventListener('pointercancel', onPointerEnd, { passive:false, capture:true });
-  viewer.addEventListener('pointerleave', onPointerEnd, { passive:false, capture:true });
-
-  // 창 크기 변경
-  let _resizeTimer = null;
-  window.addEventListener('resize', ()=>{
-    clearTimeout(_resizeTimer);
-    _resizeTimer = setTimeout(()=>{
-      applyModeOnResize();
-      fitToViewportOr100();
-      fitTitleDebounced();
-    }, 120);
-  });
-
-  // 초기 로드
-  (async ()=>{
-    try{
-      const absManifestUrl = toAbs(manifestArg, location.href);
-      const raw = await fetchManifest(absManifestUrl);
-      const normalized = normalizeManifest(raw, absManifestUrl);
-
-      bookTitleEl.textContent = normalized.title || 'Monthly Art – Flipbook';
-      currentPages = normalized.pages;
-      if (!currentPages.length){ setStatus('manifest에 페이지가 없습니다.'); return; }
-
-      const dim = await getImageSize(currentPages[0]);
-      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2; CONTENT_W = BOOK_W;
-      applyCSSVars();
-
-      applyModeInit(); // 단면/스프레드 초기화 & 맞춤
-      setStatus('Ready');
-      requestAnimationFrame(fitTitle);
-    }catch(e){
-      console.error(e);
-      setStatus('로드 오류: ' + (e.message || e));
-    }
-  })();
-
-  // 우클릭 방지
-  document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
-
-  // 제목 자동 맞춤
-  function fitTitle() {
-    const box = document.querySelector('.titleBox');
-    const text = document.getElementById('bookTitle');
-    if (!box || !text) return;
-    text.style.fontSize = '';
-    const style = getComputedStyle(text);
-    let size = parseFloat(style.fontSize);
-    const minSize = 11;
-    const available = box.clientWidth;
-    let guard = 120;
-    while (text.scrollWidth > available && size > minSize && guard-- > 0) {
-      size = Math.max(minSize, size - 0.5);
-      text.style.fontSize = size + 'px';
-    }
-  }
-  let _fitTimer = null;
-  function fitTitleDebounced(){ clearTimeout(_fitTimer); _fitTimer = setTimeout(fitTitle, 120); }
-
-  // ==== 키보드 화살표 내비/패닝 ====
-  const PAN_STEP_PX = 120; // 화면 기준 픽셀
-  window.addEventListener('keydown', (e)=>{
-    if (isTextInputFocused()) return;
-    const k = e.key;
-    if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) return;
-    e.preventDefault();
-    if (scale > 1) {
-      const step = PAN_STEP_PX / scale;
-      if (k === 'ArrowLeft')  tx += step;
-      if (k === 'ArrowRight') tx -= step;
-      if (k === 'ArrowUp')    ty += step;
-      if (k === 'ArrowDown')  ty -= step;
-      centerWithinViewport(); applyTransform();
-      return;
-    }
-    if (!pageFlip) return;
-    if (k === 'ArrowLeft')  pageFlip.flipPrev();
-    if (k === 'ArrowRight') pageFlip.flipNext();
-  });
+| e));
+    }
+  })();
+  
+  // 우클릭 방지
+  document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
+  
+  // 제목 자동 맞춤
+  function fitTitle() {
+    const box = document.querySelector('.titleBox');
+    const text = document.getElementById('bookTitle');
+    if (!box ||!text) return;
+    text.style.fontSize = '';
+    const style = getComputedStyle(text);
+    let size = parseFloat(style.fontSize);
+    const minSize = 11;
+    const available = box.clientWidth;
+    let guard = 120;
+    while (text.scrollWidth > available && size > minSize && guard-- > 0) {
+      size = Math.max(minSize, size - 0.5);
+      text.style.fontSize = size + 'px';
+    }
+  }
+  let _fitTimer = null;
+  function fitTitleDebounced(){ clearTimeout(_fitTimer); _fitTimer = setTimeout(fitTitle, 120); }
+  
+  // ==== 키보드 화살표 내비/패닝 ====
+  const PAN_STEP_PX = 120; // 화면 기준 픽셀
+  window.addEventListener('keydown', (e)=>{
+    if (isTextInputFocused()) return;
+    const k = e.key;
+    if (!.includes(k)) return;
+    e.preventDefault();
+    if (panzoom.getScale() > 1) {
+      const step = PAN_STEP_PX;
+      if (k === 'ArrowLeft')  panzoom.panBy(step, 0);
+      if (k === 'ArrowRight') panzoom.panBy(-step, 0);
+      if (k === 'ArrowUp')    panzoom.panBy(0, step);
+      if (k === 'ArrowDown')  panzoom.panBy(0, -step);
+      return;
+    }
+    if (!pageFlip) return;
+    if (k === 'ArrowLeft')  pageFlip.flipPrev();
+    if (k === 'ArrowRight') pageFlip.flipNext();
+  });
 </script>
 </body>
 </html>
