@@ -289,4 +289,129 @@
       setupPanzoom(true);
     } else {
       CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
-      appl
+      applyCSSVars();
+      setupPanzoom(true);
+    }
+  }
+
+  // 컨트롤 버튼
+  prevBtn.addEventListener('click', goPrev);
+  nextBtn.addEventListener('click', goNext);
+  pageInput.addEventListener('change', ()=>{
+    if(!pageFlip) return;
+    const n = Math.max(1, Math.min(parseInt(pageInput.value||'1',10), pageFlip.getPageCount()));
+    pageFlip.flip(n-1); pageInput.value = n;
+  });
+  fsBtn.addEventListener('click', ()=>{
+    const el = viewer;
+    if(!document.fullscreenElement){
+      (el.requestFullscreen || el.webkitRequestFullscreen || document.documentElement.requestFullscreen).call(el);
+    } else {
+      (document.exitFullscreen || document.webkitExitFullscreen || document.cancelFullscreen).call(document);
+    }
+  });
+
+  // ==== 가장자리 탭으로만 페이지 넘김 (배율 ≤ 1) ====
+  viewer.addEventListener('pointerdown', (e)=>{
+    // Panzoom과 충돌 피하려고 기록만 함 (preventDefault 금지)
+    tapStart = { x:e.clientX, y:e.clientY, t:performance.now() };
+  }, { capture:true });
+
+  viewer.addEventListener('pointerup', (e)=>{
+    if (!tapStart) return;
+    const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
+    const dt = performance.now() - tapStart.t;
+    tapStart = null;
+
+    if (!pageFlip || !pz) return;
+    if (pz.getScale() > 1) return; // 확대 중엔 페이징 금지(패닝 우선)
+
+    if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS){
+      const r = flipRoot.getBoundingClientRect();
+      if (e.clientY >= r.top && e.clientY <= r.bottom){
+        const xRel = (e.clientX - r.left) / r.width;
+        if (xRel <= EDGE_TAP_ZONE)       goPrev();
+        else if (xRel >= 1-EDGE_TAP_ZONE) goNext();
+      }
+    }
+  }, { capture:true });
+
+  // ==== 키보드: 확대 시 패닝 / 100% 이하는 페이징 ====
+  const PAN_STEP_PX = 120;
+  window.addEventListener('keydown', (e)=>{
+    if (isTextInputFocused()) return;
+    const k = e.key;
+    if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) return;
+    e.preventDefault();
+    if (pz && pz.getScale() > 1){
+      const step = PAN_STEP_PX / pz.getScale();
+      const { x, y } = pz.getPan ? pz.getPan() : { x:0, y:0 };
+      let nx = x, ny = y;
+      if (k === 'ArrowLeft')  nx += step;
+      if (k === 'ArrowRight') nx -= step;
+      if (k === 'ArrowUp')    ny += step;
+      if (k === 'ArrowDown')  ny -= step;
+      pz.pan(nx, ny, { animate:false });
+      return;
+    }
+    if (k === 'ArrowLeft')  goPrev();
+    if (k === 'ArrowRight') goNext();
+  });
+
+  // 초기 로드
+  (async ()=>{
+    try{
+      const absManifestUrl = toAbs(manifestArg, location.href);
+      const raw = await fetchManifest(absManifestUrl);
+      const normalized = normalizeManifest(raw, absManifestUrl);
+
+      bookTitleEl.textContent = normalized.title || 'Monthly Art – Flipbook';
+      currentPages = normalized.pages;
+      if (!currentPages.length){ setStatus('manifest에 페이지가 없습니다.'); return; }
+
+      // 첫 이미지 크기 → 페이지 크기 결정
+      const dim = await getImageSize(currentPages[0]);
+      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2; CONTENT_W = BOOK_W;
+      applyCSSVars();
+
+      applyModeInit(); // 단면/스프레드 초기화 & Panzoom 준비
+    }catch(e){
+      console.error(e);
+      setStatus('로드 오류: ' + (e.message || e));
+    }
+  })();
+
+  // 우클릭 방지
+  document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
+
+  // 제목 자동 맞춤
+  function fitTitle() {
+    const box = document.querySelector('.titleBox');
+    const text = document.getElementById('bookTitle');
+    if (!box || !text) return;
+    text.style.fontSize = '';
+    const style = getComputedStyle(text);
+    let size = parseFloat(style.fontSize);
+    const minSize = 11;
+    const available = box.clientWidth;
+    let guard = 120;
+    while (text.scrollWidth > available && size > minSize && guard-- > 0) {
+      size = Math.max(minSize, size - 0.5);
+      text.style.fontSize = size + 'px';
+    }
+  }
+  let _fitTimer = null;
+  function fitTitleDebounced(){ clearTimeout(_fitTimer); _fitTimer = setTimeout(fitTitle, 120); }
+
+  // 리사이즈에서 Panzoom/레이아웃 재설정
+  let _resizeTimer = null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(()=>{
+      applyModeOnResize();
+      fitTitleDebounced();
+    }, 120);
+  });
+</script>
+</body>
+</html>
