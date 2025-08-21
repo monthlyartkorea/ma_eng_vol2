@@ -40,12 +40,48 @@
 
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
     #status{font-weight:600}
+    /* 제목 박스: 한 줄 고정 + 말줄임표 + 최대 높이 35px  04:24pm 추가*/
+    .titleBox{
+      /* flex 레이아웃에서 ellipsis가 동작하도록 */
+      min-width: 0;           /* 중요: 줄바꿈 대신 축소 허용 */
+      max-width: clamp(160px, 45vw, 720px); /* 화면 폭에 따라 유연한 최대폭 */
+      display: flex;
+      align-items: center;
+    
+      /* 기존 .field에서 상속되는 padding/border 유지 */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    
+      /* 높이 제한 */
+      max-height: 35px;       /* 세로 35px 넘지 않음 */
+    }
+    
+    /* 실제 텍스트: 말줄임표 + 가변 폰트크기 */
+    .titleText{
+      font-weight: 700;
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    
+      /* 너무 좁을 때 자동으로 줄이는 기본 장치 */
+      font-size: clamp(12px, 1.6vw, 16px);
+      line-height: 1.1;
+      min-width: 0;           /* flex 수축 허용 */
+    }
+    
+    /* 툴바가 너무 빽빽해지면 버튼/입력도 살짝 줄이는 보조 규칙 (선택) */
+    @media (max-width: 640px){
+      .toolbar .btn, .toolbar .field { padding: 4px 8px; }
+      .toolbar .range { width: 120px; }
+    }
   </style>
 </head>
 <body>
 <div class="app">
   <div class="toolbar">
-    <div class="field"><span id="bookTitle" style="font-weight:700">Boiling Point: Emerging Artists & Spaces in Korea</span></div>
+    <div class="field titleBox"><span id="bookTitle" class="titleText">Boiling Point: Emerging Artists & Spaces in Korea</span></div>
     <div class="spacer"></div>
     <div id="status" class="hint">Loading…</div>
 
@@ -324,6 +360,53 @@
 
   // 우클릭 방지
   document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
+
+   // 제목 텍스트를 박스 폭에 자동 맞춤 (최소 11px)
+  function fitTitle() {
+    const box = document.querySelector('.titleBox');
+    const text = document.getElementById('bookTitle');
+    if (!box || !text) return;
+
+    // 초기값(클램프 상한)으로 리셋 후 점진 축소
+    text.style.fontSize = ''; // CSS clamp 우선
+    const style = getComputedStyle(text);
+    let size = parseFloat(style.fontSize);
+    const minSize = 11;
+
+    // 박스 내부 가용 폭
+    const available = box.clientWidth;
+
+    // 너무 커서 넘치면 0.5px 단위로 줄임
+    let guard = 100; // 무한루프 방지
+    while (text.scrollWidth > available && size > minSize && guard-- > 0) {
+      size = Math.max(minSize, size - 0.5);
+      text.style.fontSize = size + 'px';
+    }
+    // 마지막 안전장치: 그래도 넘치면 ellipsis로 처리(기본 CSS가 담당)
+  }
+
+  // 초기 데이터 로드/제목 설정 후 호출
+  function afterBookReady(){
+    fitTitle();
+  }
+
+  // 기존 Ready 직후에 한 번 호출
+  // setStatus('Ready'); 다음 줄 등 적당한 위치에 호출해도 됩니다.
+  const _origSetStatus = setStatus;
+  window.setStatus = function(msg){
+    _origSetStatus(msg);
+    if (msg === 'Ready') {
+      // 레이아웃이 안정된 다음 프레임에 실행
+      requestAnimationFrame(fitTitle);
+    }
+  };
+
+  // 창 크기 변경 시 디바운스하여 재적용
+  let _fitTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(_fitTimer);
+    _fitTimer = setTimeout(fitTitle, 120);
+  });  
 </script>
 </body>
 </html>
