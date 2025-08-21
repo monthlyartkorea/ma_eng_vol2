@@ -26,8 +26,7 @@
     /* 뷰포트/줌 레이어 */
     #viewer{
       position:relative;display:grid;place-items:center;overflow:hidden;background:transparent;
-      /* Panzoom이 제스처를 전담하도록 */
-      touch-action:none;
+      touch-action:none; /* Panzoom이 제스처 전담 */
     }
     #zoomLayer{
       position:relative;width:fit-content;height:fit-content;
@@ -129,6 +128,7 @@
   // Panzoom
   let pz = null;
   const MIN_SCALE = 0.25, MAX_SCALE = 4.0;
+  let panState = { x:0, y:0, scale:1 }; // Panzoom 상태 캐시
 
   // 페이지/레이아웃
   let PAGE_W = 1240, PAGE_H = 1624; // 첫 이미지로 자동 감지
@@ -157,6 +157,17 @@
     root.style.setProperty('--content-w', CONTENT_W + 'px');
   }
 
+  // 누락됐던 함수 추가!
+  function getImageSize(url){
+    return new Promise((resolve, reject)=>{
+      const img = new Image();
+      // 교차 출처 이미지가 필요하면 서버에서 CORS 헤더 설정 필요
+      img.onload = ()=>resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = ()=>reject(new Error('이미지 로드 실패: ' + url));
+      img.src = url;
+    });
+  }
+
   // Panzoom 세팅
   function computeFit() {
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
@@ -167,7 +178,7 @@
     return { startScale, startX, startY };
   }
 
-  function setupPanzoom(recreate=false){
+  function setupPanzoom(recreate=true){
     const { startScale, startX, startY } = computeFit();
 
     if (recreate && pz){
@@ -180,7 +191,7 @@
         startScale, startX, startY,
         minScale: MIN_SCALE, maxScale: MAX_SCALE,
         canvas: true,                 // 부모 기준 드래그 허용
-        contain: 'outside',           // 바깥 여백 허용(더 자연스러운 패닝)
+        contain: 'outside',           // 바깥 여백 허용
         panOnlyWhenZoomed: true,      // 100% 이하는 패닝 금지(오동작 방지)
         touchAction: 'none',
         cursor: 'grab'
@@ -192,11 +203,16 @@
         pz.zoomWithWheel(e);
       }, { passive:false });
 
-      // 배율 표시 동기화
-      viewer.addEventListener('panzoomchange', ()=>{
-        const s = pz.getScale();
-        zoomRange.value = Math.round(s * 100);
-        zoomLbl.textContent = `${Math.round(s * 100)}%`;
+      // 배율/좌표 상태 동기화
+      viewer.addEventListener('panzoomchange', (ev)=>{
+        const d = ev.detail || {};
+        if (typeof d.scale === 'number') {
+          panState.scale = d.scale;
+          zoomRange.value = Math.round(d.scale * 100);
+          zoomLbl.textContent = `${Math.round(d.scale * 100)}%`;
+        }
+        if (typeof d.x === 'number') panState.x = d.x;
+        if (typeof d.y === 'number') panState.y = d.y;
       });
 
       // 슬라이더 → 중앙 기준 줌
@@ -206,9 +222,7 @@
         pz.zoomToPoint(target, { clientX: r.left + r.width/2, clientY: r.top + r.height/2 }, { animate:false });
       });
     } else {
-      // 옵션 갱신 & 리셋
-      pz.setOptions({ minScale:MIN_SCALE, maxScale:MAX_SCALE });
-      pz.reset({ startX, startY, startScale, animate:false });
+      // 완전 재생성 경로만 사용하므로 여기엔 안 옴
     }
   }
 
@@ -324,7 +338,7 @@
     tapStart = null;
 
     if (!pageFlip || !pz) return;
-    if (pz.getScale() > 1) return; // 확대 중엔 페이징 금지(패닝 우선)
+    if (panState.scale > 1) return; // 확대 중엔 페이징 금지(패닝 우선)
 
     if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS){
       const r = flipRoot.getBoundingClientRect();
@@ -343,10 +357,9 @@
     const k = e.key;
     if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) return;
     e.preventDefault();
-    if (pz && pz.getScale() > 1){
-      const step = PAN_STEP_PX / pz.getScale();
-      const { x, y } = pz.getPan ? pz.getPan() : { x:0, y:0 };
-      let nx = x, ny = y;
+    if (pz && panState.scale > 1){
+      const step = PAN_STEP_PX / panState.scale;
+      let nx = panState.x, ny = panState.y;
       if (k === 'ArrowLeft')  nx += step;
       if (k === 'ArrowRight') nx -= step;
       if (k === 'ArrowUp')    ny += step;
