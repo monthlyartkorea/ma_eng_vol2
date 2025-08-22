@@ -321,42 +321,64 @@
   });
 
   // ====== 줌 (휠) ======
-  viewer.addEventListener('wheel', (e)=>{
+   viewer.addEventListener('wheel', (e)=>{
     e.preventDefault();
-    // 트랙패드/마우스 모두 부드럽게: 지수 스케일
     const dy = (e.deltaMode === 1) ? e.deltaY * 16 : e.deltaY;
-    const factor = Math.exp(-dy / 300); // dy>0 축소, dy<0 확대
+    const factor = Math.exp(-dy / 300);
     const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
     setScale(target, e.clientX, e.clientY);
+
+    // 줌아웃으로 기본 배율보다 더 작아지면 화면맞춤으로 정리
+    if (scale <= fitScale + 1e-4) {
+      fitToScreen(false);
+    }
   }, { passive:false, capture:true });
 
-  // ====== 핀치/드래그 ======
+  // ====== 핀치/드래그 : ★ zoomLayer 에서 처리 ★ ======
+  const pointers = new Map();
+  let isDragging = false, dragLast = {x:0,y:0};
+  let pinchStartScale = 1, pinchStartDist = 0, pinchCenter = {x:0,y:0};
+
+  // 탭 내비 판단용
+  const EDGE_TAP_ZONE = 0.22, TAP_MAX_DIST = 8, TAP_MAX_MS = 300;
+  let tapStart = null;
+
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
   function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
 
-  let pinchStartScale = 1, pinchStartDist = 0, pinchCenter = {x:0,y:0};
+  // 허용 오차(확대 판정 느슨하게)
+  const GT_FIT = ()=> scale > (fitScale + 0.001);
 
-  viewer.addEventListener('pointerdown', (e)=>{
+  zoomLayer.addEventListener('pointerdown', (e)=>{
+    // 마우스는 좌클릭만, 터치는 제한 없음
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
     e.preventDefault(); e.stopPropagation();
-    viewer.setPointerCapture(e.pointerId);
+    zoomLayer.setPointerCapture(e.pointerId);
+
     const r = viewer.getBoundingClientRect();
     const p = { x:e.clientX - r.left, y:e.clientY - r.top };
     pointers.set(e.pointerId, p);
 
-    // 탭 내비 체크용
+    // 탭 내비 판단 시작점
     tapStart = { x:e.clientX, y:e.clientY, t:performance.now() };
 
-    if (pointers.size === 1 && scale > fitScale){
-      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = p;
+    if (pointers.size === 1 && GT_FIT()){
+      isDragging = true;
+      zoomLayer.classList.add('dragging');
+      dragLast = p;
     } else if (pointers.size === 2){
       const [a,b] = [...pointers.values()];
-      pinchStartDist = dist(a,b); pinchStartScale = scale; pinchCenter = mid(a,b);
+      pinchStartDist = Math.max(1, dist(a,b));
+      pinchStartScale = scale;
+      pinchCenter = mid(a,b);
     }
-  }, { passive:false, capture:true });
+  }, { passive:false });
 
-  viewer.addEventListener('pointermove', (e)=>{
-    e.preventDefault(); e.stopPropagation();
+  zoomLayer.addEventListener('pointermove', (e)=>{
     if (!pointers.has(e.pointerId)) return;
+    e.preventDefault(); e.stopPropagation();
+
     const r = viewer.getBoundingClientRect();
     const cur = { x:e.clientX - r.left, y:e.clientY - r.top };
     pointers.set(e.pointerId, cur);
@@ -372,47 +394,61 @@
       ty += (c.y - pinchCenter.y);
       clampPan(); applyTransform();
       pinchCenter = c;
-    } else if (isDragging && scale > fitScale){
-      tx += (cur.x - dragLast.x); ty += (cur.y - dragLast.y);
-      dragLast = cur; clampPan(); applyTransform();
+    } else if (isDragging && GT_FIT()){
+      tx += (cur.x - dragLast.x);
+      ty += (cur.y - dragLast.y);
+      dragLast = cur;
+      clampPan(); applyTransform();
+    } else if (!isDragging && pointers.size === 1 && GT_FIT()){
+      // 드래그 지연 진입(다운 시점에 fit≈scale이었던 경우 보정)
+      isDragging = true;
+      zoomLayer.classList.add('dragging');
+      dragLast = cur;
     }
-  }, { passive:false, capture:true });
+  }, { passive:false });
 
   function endPointer(e){
-    e.preventDefault(); e.stopPropagation();
-    const start = tapStart;
     if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
+    e.preventDefault(); e.stopPropagation();
 
-    // 탭 내비: 확대(=scale>fitScale) 상태가 아닐 때만, 가장자리에서만
-    if (start){
-      const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-      const dt = performance.now() - start.t;
-      if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS && scale <= fitScale + 0.001){
+    // 탭 내비: 확대가 아닐 때만, 이동 적고 짧은 탭이면 페이지 넘김
+    if (tapStart){
+      const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
+      const dt = performance.now() - tapStart.t;
+      if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS && !GT_FIT()){
         const r = flipRoot.getBoundingClientRect();
         if (e.clientY >= r.top && e.clientY <= r.bottom){
           const xr = (e.clientX - r.left) / r.width;
-          if (xr <= EDGE_TAP_ZONE) goPrev();
-          else if (xr >= 1-EDGE_TAP_ZONE) goNext();
+          if (xr <= EDGE_TAP_ZONE) pageFlip?.flipPrev();
+          else if (xr >= 1-EDGE_TAP_ZONE) pageFlip?.flipNext();
         }
       }
+      tapStart = null;
     }
-    tapStart = null;
 
-    if (pointers.size === 0){ isDragging = false; zoomLayer.classList.remove('dragging'); }
-    if (pointers.size < 2){ pinchStartDist = 0; }
+    if (pointers.size === 0){
+      isDragging = false;
+      zoomLayer.classList.remove('dragging');
+    }
+    if (pointers.size < 2) pinchStartDist = 0;
+
+    // 핀치로 많이 축소 → 기본 배율 이하로 내려가면 깔끔히 화면맞춤
+    if (scale <= fitScale + 1e-4) {
+      fitToScreen(false);
+    }
   }
-  viewer.addEventListener('pointerup', endPointer, { passive:false, capture:true });
-  viewer.addEventListener('pointercancel', endPointer, { passive:false, capture:true });
-  viewer.addEventListener('pointerleave', endPointer, { passive:false, capture:true });
+  zoomLayer.addEventListener('pointerup', endPointer, { passive:false });
+  zoomLayer.addEventListener('pointercancel', endPointer, { passive:false });
+  zoomLayer.addEventListener('pointerleave', endPointer, { passive:false });
 
-  // ====== 키보드 ======
+  // ====== 키보드(그대로): 확대 시 패닝 / 기본배율 이하는 페이징 ======
   const PAN_STEP_PX = 120;
   window.addEventListener('keydown', (e)=>{
     if (isTextInputFocused()) return;
     const k = e.key;
     if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) return;
     e.preventDefault();
-    if (scale > fitScale + 0.001){
+    if (GT_FIT()){
       const step = PAN_STEP_PX / scale;
       if (k === 'ArrowLeft')  tx += step;
       if (k === 'ArrowRight') tx -= step;
@@ -421,8 +457,8 @@
       clampPan(); applyTransform();
       return;
     }
-    if (k === 'ArrowLeft')  goPrev();
-    if (k === 'ArrowRight') goNext();
+    if (k === 'ArrowLeft')  pageFlip?.flipPrev();
+    if (k === 'ArrowRight') pageFlip?.flipNext();
   });
 
   // ====== 초기 로드 ======
