@@ -25,7 +25,7 @@
     /* 뷰포트/줌 레이어 */
     #viewer{
       position:relative;display:grid;place-items:center;overflow:hidden;background:transparent;
-      touch-action:none; /* Panzoom이 제스처 전담 */
+      touch-action:none; /* Panzoom 제스처 전담 */
     }
     #zoomLayer{
       position:relative;width:fit-content;height:fit-content;
@@ -44,8 +44,7 @@
     /* Hover 차단용 투명 오버레이 */
     #shield{
       position:absolute; inset:0; z-index:5; background:transparent;
-      /* pointer-events는 켜 둬야 hover가 PageFlip으로 전달되지 않음 */
-      pointer-events:auto;
+      pointer-events:auto; /* hover/포인터를 흡수하여 PageFlip에 못 가게 함 */
     }
 
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
@@ -61,7 +60,7 @@
       font-size:clamp(12px,1.6vw,16px); line-height:1.1; min-width:0;
     }
 
-    /* 모바일(좁은 폭) 상단 메뉴 간소화 */
+    /* 모바일 상단 메뉴 간소화 */
     @media (max-width: 900px){
       .titleBox, #status, #pageGroup, .spacer { display:none !important; }
     }
@@ -120,7 +119,6 @@
   const fsBtn = document.getElementById('fs');
   const statusEl = document.getElementById('status');
 
-  // 상태
   let pageFlip = null;
   let currentPages = [];
 
@@ -139,6 +137,7 @@
   const EDGE_TAP_ZONE = 0.22, TAP_MAX_DIST = 8, TAP_MAX_MS = 300;
   let tapStart = null;
 
+  // ===== 유틸 =====
   function setStatus(msg){ statusEl.textContent = msg; }
   function naturalSort(a,b){ const c = new Intl.Collator(undefined,{numeric:true,sensitivity:'base'}); return c.compare(a,b); }
   function toAbs(urlLike, baseHref){ try { return new URL(urlLike, baseHref).href; } catch { return urlLike; } }
@@ -164,49 +163,66 @@
     });
   }
 
-  // === Panzoom 세팅 ===
+  // ===== Panzoom 세팅/리셋 =====
   function computeFit() {
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    // (핵심) 브라우저에 전체 페이지(스프레드는 펼침 전체)가 다 보이도록 contain
+    // 전체 페이지(스프레드는 펼침 전체)가 한 화면에 들어오도록
     const startScale = Math.min(vw / CONTENT_W, vh / PAGE_H, 1);
     const startX = Math.round((vw - CONTENT_W * startScale) / 2);
     const startY = Math.round((vh - PAGE_H     * startScale) / 2);
     return { startScale, startX, startY };
   }
 
-  function setupPanzoom(){
+  function setupPanzoom(recreate=true){
     const { startScale, startX, startY } = computeFit();
 
-    if (pz){ pz.destroy(); pz = null; }
-    pz = Panzoom(zoomLayer, {
-      startScale, startX, startY,
-      minScale: MIN_SCALE, maxScale: MAX_SCALE,
-      canvas: true,
-      contain: 'outside',
-      panOnlyWhenZoomed: true,
-      touchAction: 'none',
-      cursor: 'grab'
-    });
+    if (recreate && pz){
+      pz.destroy();
+      pz = null;
+    }
+    if (!pz){
+      pz = Panzoom(zoomLayer, {
+        startScale, startX, startY,
+        minScale: MIN_SCALE, maxScale: MAX_SCALE,
+        canvas: true,
+        contain: 'outside',
+        panOnlyWhenZoomed: true,
+        touchAction: 'none',
+        cursor: 'grab'
+      });
 
-    // 커스텀 휠 줌(확대/축소 모두 부드럽게) + capture로 우선 처리
-    viewer.addEventListener('wheel', (e)=>{
-      e.preventDefault();
-      const { clientX:cx, clientY:cy, deltaY, deltaMode } = e;
-      // deltaMode 보정(라인 단위 -> 픽셀 근사)
-      const dy = deltaMode === 1 ? deltaY * 16 : deltaY;
-      const factor = Math.exp(-dy / 300); // dy>0 축소, <0 확대
-      const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pz.getScale() * factor));
-      pz.zoomToPoint(target, { clientX: cx, clientY: cy }, { animate:false });
-    }, { passive:false, capture:true });
+      // 커스텀 휠 줌(확대/축소 모두 안정적으로) + capture로 우선 처리
+      viewer.addEventListener('wheel', (e)=>{
+        e.preventDefault();
+        const { clientX:cx, clientY:cy, deltaY, deltaMode } = e;
+        const dy = deltaMode === 1 ? deltaY * 16 : deltaY; // line → px 보정
+        const factor = Math.exp(-dy / 300); // dy>0 축소, dy<0 확대
+        const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pz.getScale() * factor));
+        pz.zoomToPoint(target, { clientX: cx, clientY: cy }, { animate:false });
+      }, { passive:false, capture:true });
 
-    // Hover 애니메이션 완전 차단: shield가 모든 hover/pointer move를 먹는다
-    const block = ev => ev.stopPropagation();
-    ['mousemove','mouseenter','mouseleave','pointermove','pointerenter','pointerleave'].forEach(t=>{
-      shield.addEventListener(t, block, { capture:true });
-    });
+      // Hover 애니메이션 완전 차단: shield가 모든 hover/pointer move를 흡수
+      const block = ev => ev.stopPropagation();
+      ['mousemove','mouseenter','mouseleave','pointermove','pointerenter','pointerleave'].forEach(t=>{
+        shield.addEventListener(t, block, { capture:true });
+      });
+
+      // 초기 프레임 뒤 한 번 더 정확히 맞춤
+      requestAnimationFrame(()=> pz.reset({ startX, startY, startScale, animate:false }));
+    } else {
+      pz.reset({ startX, startY, startScale, animate:false });
+    }
   }
 
-  // === PageFlip 초기화 ===
+  // viewer 크기 변화에 반응 (윈도우 리사이즈 외에도 툴바 높이 변화 등 대응)
+  const ro = new ResizeObserver(()=>{
+    // rAF + 디바운스 가드
+    if (setupPanzoom._t) cancelAnimationFrame(setupPanzoom._t);
+    setupPanzoom._t = requestAnimationFrame(()=> setupPanzoom(false));
+  });
+  ro.observe(viewer);
+
+  // ===== PageFlip =====
   function initFlip(imageURLs, forcePortrait){
     flipRoot.innerHTML = '';
     if (pageFlip){ pageFlip.destroy(); pageFlip = null; }
@@ -217,10 +233,9 @@
       minWidth: PAGE_W, maxWidth: PAGE_W,
       minHeight: PAGE_H, maxHeight: PAGE_H,
       usePortrait: portrait,
-      // ① 데스크톱(스프레드)에서는 표지 단면 → 이후 스프레드
-      showCover: portrait ? false : true,
+      showCover: portrait ? false : true, // 데스크톱: 표지 단면 → 이후 스프레드
       maxShadowOpacity: .2,
-      mobileScrollSupport: false,      // 제스처는 Panzoom만
+      mobileScrollSupport: false,
       disableFlipByClick: true
     });
     pageFlip.loadFromImages(imageURLs);
@@ -232,7 +247,7 @@
   function goPrev(){ if(!pageFlip) return; pageFlip.flipPrev(); }
   function goNext(){ if(!pageFlip) return; pageFlip.flipNext(); }
 
-  // manifest
+  // ===== manifest =====
   async function fetchManifest(url){
     setStatus(`Fetching manifest: ${url}`);
     const res = await fetch(url, { cache: 'no-store' });
@@ -252,7 +267,7 @@
     throw new Error('지원하지 않는 manifest 형식입니다.');
   }
 
-  // 모드 전환
+  // ===== 모드 전환 =====
   function computeSinglePageMode(){ return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches; }
   function applyModeInit(){
     const single = computeSinglePageMode();
@@ -260,7 +275,7 @@
     CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
     applyCSSVars();
     initFlip(currentPages, isSinglePageMode);
-    setupPanzoom();
+    setupPanzoom(true);
     setStatus('Ready');
   }
   function applyModeOnResize(){
@@ -276,10 +291,11 @@
       CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
       applyCSSVars();
     }
-    setupPanzoom();
+    // PageFlip 변경 후 Panzoom 재맞춤
+    setupPanzoom(true);
   }
 
-  // 컨트롤 버튼
+  // ===== 컨트롤 =====
   prevBtn.addEventListener('click', goPrev);
   nextBtn.addEventListener('click', goNext);
   pageInput.addEventListener('change', ()=>{
@@ -364,7 +380,7 @@
   // 우클릭 방지
   document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
 
-  // 리사이즈 핸들링
+  // 윈도우 리사이즈(브레이크포인트 전환용)
   let _resizeTimer = null;
   window.addEventListener('resize', ()=>{
     clearTimeout(_resizeTimer);
