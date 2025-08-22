@@ -23,7 +23,7 @@
     /* 뷰포트/줌 레이어 */
     #viewer{
       position:relative;display:grid;place-items:center;overflow:hidden;background:transparent;
-      touch-action:none;  /* 모든 제스처를 우리가 처리 */
+      touch-action:none;  /* 모든 제스처 직접 처리 */
     }
     #zoomLayer{
       position:relative;width:fit-content;height:fit-content;
@@ -36,7 +36,7 @@
     #flip{
       position:relative; width:var(--content-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
-      pointer-events:none;         /* hover/클릭 완전 차단 */
+      pointer-events:none; /* hover/클릭 완전 차단 */
     }
     #flip *{ pointer-events:none !important; }
     .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }
@@ -130,10 +130,13 @@
   // 줌/패닝 상태
   const MIN_SCALE = 0.25, MAX_SCALE = 4.0;
   let scale = 1, tx = 0, ty = 0, fitScale = 1;
-  let isDragging = false, dragLast = {x:0,y:0};
-  const pointers = new Map(); // 핀치용
 
-  // 탭 내비
+  // 드래그/핀치 상태 (★ 한 번만 선언)
+  const pointers = new Map();
+  let isDragging = false, dragLast = {x:0,y:0};
+  let pinchStartScale = 1, pinchStartDist = 0, pinchCenter = {x:0,y:0};
+
+  // 탭 내비 (★ 한 번만 선언)
   const EDGE_TAP_ZONE = 0.22, TAP_MAX_DIST = 8, TAP_MAX_MS = 300;
   let tapStart = null;
 
@@ -172,9 +175,8 @@
   function computeFitScale(){
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
     const w = CONTENT_W, h = PAGE_H;
-    // "항상 한 화면에 다 보이도록": 높이에 우선 맞추되 가로 넘치면 보정
-    let s = Math.min(vh / h, 1);
-    if (w * s > vw) s = Math.min(vw / w, s);
+    let s = Math.min(vh / h, 1);       // 높이에 우선 맞춤
+    if (w * s > vw) s = Math.min(vw / w, s);  // 가로 넘치면 보정
     return Math.max(MIN_SCALE, s);
   }
 
@@ -190,7 +192,6 @@
   }
 
   function setScale(newScale, cx, cy){
-    // 고정점(cx,cy) 기준으로 스케일링
     const rect = viewer.getBoundingClientRect();
     const x = (cx !== undefined) ? cx - rect.left : rect.width/2;
     const y = (cy !== undefined) ? cy - rect.top  : rect.height/2;
@@ -198,7 +199,6 @@
     const prev = scale;
     const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
 
-    // 화면 좌표(x,y)가 콘텐츠 좌표로 가리키던 점(px,py)을 유지
     const px = (x - tx) / prev;
     const py = (y - ty) / prev;
 
@@ -215,14 +215,12 @@
     applyCSSVars();
     const newFit = computeFitScale();
     if (!keepZoom || scale <= fitScale + 0.001) {
-      // 처음이거나 현재가 거의 fit 상태면 fit로 고정
       scale = newFit;
       const vw = viewer.clientWidth, vh = viewer.clientHeight;
       tx = (vw - CONTENT_W * scale) / 2;
       ty = (vh - PAGE_H     * scale) / 2;
       applyTransform();
     } else {
-      // 확대 중엔 위치만 보정
       clampPan();
       applyTransform();
     }
@@ -236,7 +234,7 @@
 
     isSinglePageMode = !!forcePortrait;
     const usePortrait = isSinglePageMode;
-    const showCover = !usePortrait && showCoverDesktop;
+    const showCover = !usePortrait && showCoverDesktop; // PC: 표지 단면
 
     pageFlip = new St.PageFlip(flipRoot, {
       width: PAGE_W, height: PAGE_H,
@@ -255,8 +253,7 @@
     pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
     pageFlip.on('flip', e => {
       pageInput.value = e.data + 1;
-      // 페이지 전환 시 표지/스프레드 폭 변경 반영
-      fitToScreen(true);
+      fitToScreen(true); // 전환 후 폭 재계산(표지/스프레드)
     });
   }
 
@@ -320,39 +317,23 @@
     }
   });
 
-  // ====== 줌 (휠) ======
-   viewer.addEventListener('wheel', (e)=>{
+  // ====== 줌 (휠) : viewer에서 처리 ======
+  viewer.addEventListener('wheel', (e)=>{
     e.preventDefault();
     const dy = (e.deltaMode === 1) ? e.deltaY * 16 : e.deltaY;
     const factor = Math.exp(-dy / 300);
     const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
     setScale(target, e.clientX, e.clientY);
-
-    // 줌아웃으로 기본 배율보다 더 작아지면 화면맞춤으로 정리
-    if (scale <= fitScale + 1e-4) {
-      fitToScreen(false);
-    }
+    if (scale <= fitScale + 1e-4) fitToScreen(false);
   }, { passive:false, capture:true });
 
-  // ====== 핀치/드래그 : ★ zoomLayer 에서 처리 ★ ======
-  const pointers = new Map();
-  let isDragging = false, dragLast = {x:0,y:0};
-  let pinchStartScale = 1, pinchStartDist = 0, pinchCenter = {x:0,y:0};
-
-  // 탭 내비 판단용
-  const EDGE_TAP_ZONE = 0.22, TAP_MAX_DIST = 8, TAP_MAX_MS = 300;
-  let tapStart = null;
-
+  // ====== 핀치/드래그 : zoomLayer 에서 처리 ======
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
   function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
-
-  // 허용 오차(확대 판정 느슨하게)
   const GT_FIT = ()=> scale > (fitScale + 0.001);
 
   zoomLayer.addEventListener('pointerdown', (e)=>{
-    // 마우스는 좌클릭만, 터치는 제한 없음
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-
     e.preventDefault(); e.stopPropagation();
     zoomLayer.setPointerCapture(e.pointerId);
 
@@ -360,13 +341,10 @@
     const p = { x:e.clientX - r.left, y:e.clientY - r.top };
     pointers.set(e.pointerId, p);
 
-    // 탭 내비 판단 시작점
     tapStart = { x:e.clientX, y:e.clientY, t:performance.now() };
 
     if (pointers.size === 1 && GT_FIT()){
-      isDragging = true;
-      zoomLayer.classList.add('dragging');
-      dragLast = p;
+      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = p;
     } else if (pointers.size === 2){
       const [a,b] = [...pointers.values()];
       pinchStartDist = Math.max(1, dist(a,b));
@@ -388,7 +366,6 @@
       const d = Math.max(1, dist(a,b));
       const c = mid(a,b);
       const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * (d / pinchStartDist)));
-      // 핀치 중심 유지 + 중심 이동 반영
       setScale(target, c.x + r.left, c.y + r.top);
       tx += (c.x - pinchCenter.x);
       ty += (c.y - pinchCenter.y);
@@ -400,10 +377,7 @@
       dragLast = cur;
       clampPan(); applyTransform();
     } else if (!isDragging && pointers.size === 1 && GT_FIT()){
-      // 드래그 지연 진입(다운 시점에 fit≈scale이었던 경우 보정)
-      isDragging = true;
-      zoomLayer.classList.add('dragging');
-      dragLast = cur;
+      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = cur;
     }
   }, { passive:false });
 
@@ -411,7 +385,7 @@
     if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
     e.preventDefault(); e.stopPropagation();
 
-    // 탭 내비: 확대가 아닐 때만, 이동 적고 짧은 탭이면 페이지 넘김
+    // 탭 내비: 확대가 아닐 때만
     if (tapStart){
       const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
       const dt = performance.now() - tapStart.t;
@@ -426,22 +400,16 @@
       tapStart = null;
     }
 
-    if (pointers.size === 0){
-      isDragging = false;
-      zoomLayer.classList.remove('dragging');
-    }
+    if (pointers.size === 0){ isDragging = false; zoomLayer.classList.remove('dragging'); }
     if (pointers.size < 2) pinchStartDist = 0;
 
-    // 핀치로 많이 축소 → 기본 배율 이하로 내려가면 깔끔히 화면맞춤
-    if (scale <= fitScale + 1e-4) {
-      fitToScreen(false);
-    }
+    if (scale <= fitScale + 1e-4) fitToScreen(false);
   }
   zoomLayer.addEventListener('pointerup', endPointer, { passive:false });
   zoomLayer.addEventListener('pointercancel', endPointer, { passive:false });
   zoomLayer.addEventListener('pointerleave', endPointer, { passive:false });
 
-  // ====== 키보드(그대로): 확대 시 패닝 / 기본배율 이하는 페이징 ======
+  // ====== 키보드 ======
   const PAN_STEP_PX = 120;
   window.addEventListener('keydown', (e)=>{
     if (isTextInputFocused()) return;
@@ -476,11 +444,8 @@
       PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2;
       applyCSSVars();
 
-      // 모드 적용 + PageFlip 시작
       initFlip(currentPages, isMobileNarrow());
-      // 첫 화면은 항상 전체 보이도록
       fitToScreen(false);
-
       setStatus('Ready');
     }catch(e){
       console.error(e);
@@ -497,7 +462,6 @@
     clearTimeout(_resizeTimer);
     _resizeTimer = setTimeout(applyModeOnResize, 80);
   });
-  // viewer 크기 자체 변화(툴바 줄바꿈 등)에도 대응
   const ro = new ResizeObserver(()=> fitToScreen(true));
   ro.observe(viewer);
 </script>
