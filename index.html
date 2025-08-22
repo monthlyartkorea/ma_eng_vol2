@@ -25,7 +25,7 @@
     /* 뷰포트/줌 레이어 */
     #viewer{
       position:relative;display:grid;place-items:center;overflow:hidden;background:transparent;
-      touch-action:none; /* Panzoom 제스처 전담 */
+      touch-action:none; /* Panzoom 전담 */
     }
     #zoomLayer{
       position:relative;width:fit-content;height:fit-content;
@@ -34,18 +34,15 @@
     }
     #zoomLayer.dragging{cursor:grabbing;}
 
-    /* PageFlip 컨테이너 */
+    /* PageFlip 컨테이너 (고정 픽셀) */
     #flip{
       position:relative; width:var(--content-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
+      /* hover/클릭/포인터를 완전히 차단해서 PageFlip의 hover 애니메이션 제거 */
+      pointer-events:none;
     }
-    .stf__canvas, .stf_canvas, #flip canvas { background:var(--paper-dark) !important; }
-
-    /* Hover 차단용 투명 오버레이 */
-    #shield{
-      position:absolute; inset:0; z-index:5; background:transparent;
-      pointer-events:auto; /* hover/포인터를 흡수하여 PageFlip에 못 가게 함 */
-    }
+    #flip *{ pointer-events:none !important; }
+    .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }
 
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
     #status{font-weight:600}
@@ -60,7 +57,7 @@
       font-size:clamp(12px,1.6vw,16px); line-height:1.1; min-width:0;
     }
 
-    /* 모바일 상단 메뉴 간소화 */
+    /* 모바일(좁은 폭) 상단 메뉴 간소화 */
     @media (max-width: 900px){
       .titleBox, #status, #pageGroup, .spacer { display:none !important; }
     }
@@ -92,7 +89,6 @@
   <div id="viewer">
     <div id="zoomLayer">
       <div id="flip"></div>
-      <div id="shield" aria-hidden="true"></div>
     </div>
   </div>
 
@@ -110,7 +106,6 @@
   const viewer = document.getElementById('viewer');
   const zoomLayer = document.getElementById('zoomLayer');
   const flipRoot = document.getElementById('flip');
-  const shield = document.getElementById('shield');
   const bookTitleEl = document.getElementById('bookTitle');
   const prevBtn = document.getElementById('prev');
   const nextBtn = document.getElementById('next');
@@ -166,8 +161,15 @@
   // ===== Panzoom 세팅/리셋 =====
   function computeFit() {
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
-    // 전체 페이지(스프레드는 펼침 전체)가 한 화면에 들어오도록
-    const startScale = Math.min(vw / CONTENT_W, vh / PAGE_H, 1);
+
+    // 1) 높이에 우선 맞춤
+    let startScale = Math.min(vh / PAGE_H, 1);
+
+    // 2) 그 결과 가로가 넘치면 contain으로 보정
+    if (CONTENT_W * startScale > vw) {
+      startScale = Math.min(vw / CONTENT_W, 1);
+    }
+
     const startX = Math.round((vw - CONTENT_W * startScale) / 2);
     const startY = Math.round((vh - PAGE_H     * startScale) / 2);
     return { startScale, startX, startY };
@@ -191,21 +193,32 @@
         cursor: 'grab'
       });
 
-      // 커스텀 휠 줌(확대/축소 모두 안정적으로) + capture로 우선 처리
-      viewer.addEventListener('wheel', (e)=>{
+      // 휠 줌: 트랙패드/마우스 모두 부드럽게, 줌아웃 충분히 되도록
+      const onWheel = (e)=>{
         e.preventDefault();
-        const { clientX:cx, clientY:cy, deltaY, deltaMode } = e;
-        const dy = deltaMode === 1 ? deltaY * 16 : deltaY; // line → px 보정
-        const factor = Math.exp(-dy / 300); // dy>0 축소, dy<0 확대
+        const { clientX:cx, clientY:cy, deltaY, deltaMode, ctrlKey } = e;
+        const dy = deltaMode === 1 ? deltaY * 16 : deltaY; // line → px
+        const base = ctrlKey ? 180 : 300;                  // Ctrl+휠(핀치) 더 민감
+        const factor = Math.exp(-dy / base);               // dy>0 축소
         const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pz.getScale() * factor));
         pz.zoomToPoint(target, { clientX: cx, clientY: cy }, { animate:false });
-      }, { passive:false, capture:true });
+      };
+      viewer.addEventListener('wheel', onWheel, { passive:false, capture:true });
 
-      // Hover 애니메이션 완전 차단: shield가 모든 hover/pointer move를 흡수
-      const block = ev => ev.stopPropagation();
-      ['mousemove','mouseenter','mouseleave','pointermove','pointerenter','pointerleave'].forEach(t=>{
-        shield.addEventListener(t, block, { capture:true });
-      });
+      // 더블클릭/더블탭: 확대/축소 토글(선택)
+      let lastClick = 0;
+      viewer.addEventListener('pointerup', (e)=>{
+        const now = performance.now();
+        if (now - lastClick < 250){
+          e.preventDefault();
+          const r = viewer.getBoundingClientRect();
+          const cx = e.clientX, cy = e.clientY;
+          const s = pz.getScale();
+          const target = s > 1 ? Math.max(MIN_SCALE, computeFit().startScale) : Math.min(1.8, s*2);
+          pz.zoomToPoint(target, { clientX: cx, clientY: cy }, { animate:false });
+        }
+        lastClick = now;
+      }, { capture:true });
 
       // 초기 프레임 뒤 한 번 더 정확히 맞춤
       requestAnimationFrame(()=> pz.reset({ startX, startY, startScale, animate:false }));
@@ -214,13 +227,11 @@
     }
   }
 
-  // viewer 크기 변화에 반응 (윈도우 리사이즈 외에도 툴바 높이 변화 등 대응)
-  const ro = new ResizeObserver(()=>{
-    // rAF + 디바운스 가드
-    if (setupPanzoom._t) cancelAnimationFrame(setupPanzoom._t);
-    setupPanzoom._t = requestAnimationFrame(()=> setupPanzoom(false));
-  });
-  ro.observe(viewer);
+  // viewer와 flipRoot 크기 변화를 모두 관찰해 즉시 재맞춤
+  const roViewer = new ResizeObserver(()=> requestAnimationFrame(()=> setupPanzoom(false)));
+  const roFlip   = new ResizeObserver(()=> requestAnimationFrame(()=> setupPanzoom(false)));
+  roViewer.observe(viewer);
+  roFlip.observe(flipRoot);
 
   // ===== PageFlip =====
   function initFlip(imageURLs, forcePortrait){
@@ -291,7 +302,6 @@
       CONTENT_W = isSinglePageMode ? PAGE_W : BOOK_W;
       applyCSSVars();
     }
-    // PageFlip 변경 후 Panzoom 재맞춤
     setupPanzoom(true);
   }
 
