@@ -94,7 +94,7 @@
   </div>
 
   <div class="footer" style="justify-content:space-between">
-    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved.  <p><a href="./licenses.html">오픈소스 · 제3자 고지</a></p></div>
+    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved. <a href="./licenses.html">오픈소스·제3자 고지</a></div>
     <div class="hint"></div>
   </div>
 </div>
@@ -123,10 +123,10 @@
   let PAGE_W = 1240, PAGE_H = 1624;
   let BOOK_W = PAGE_W * 2;
   const MOBILE_BREAKPOINT = 900;
-  let isSinglePageMode = false;
+  let isSinglePageMode = true;  //이전값 false
   let showCoverDesktop = true; // PC에서 표지/뒷표지 단면
 
-  let CONTENT_W = BOOK_W;
+  let CONTENT_W = BOOK_W; 
 
   const MIN_SCALE = 0.25, MAX_SCALE = 4.0;
   let scale = 1, tx = 0, ty = 0, fitScale = 1;
@@ -135,7 +135,7 @@
   let isDragging = false, dragLast = {x:0,y:0};
   let pinchStartScale = 1, pinchStartDist = 0, pinchCenter = {x:0,y:0};
 
-  const EDGE_TAP_ZONE = 0.22, TAP_MAX_DIST = 8, TAP_MAX_MS = 300;
+  const EDGE_TAP_ZONE = 0.20, TAP_MAX_DIST = 8, TAP_MAX_MS = 300;
   let tapStart = null;
 
   /* ================= 유틸 ================= */
