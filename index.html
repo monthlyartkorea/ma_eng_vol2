@@ -99,7 +99,7 @@
   </div>
 
   <div class="footer" style="justify-content:space-between">
-    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved. <p><a href="/licenses.html">오픈소스 · 제3자 고지</a></p></div>
+    <div class="hint">ⓒ Wolganmisool Publications, Inc. 2025 All Right Reserved. <p><a href="./licenses.html">오픈소스 · 제3자 고지</a></p></div>
     <div class="hint"></div>
   </div>
 </div>
@@ -176,8 +176,15 @@
   // ====== 현재 보기 폭 계산 (표지/단면/스프레드) ======
   function computeContentWidth(){
     if (isSinglePageMode) return PAGE_W;            // 모바일: 항상 단면
-    if (showCoverDesktop && pageFlip && pageFlip.getCurrentPageIndex() === 0) return PAGE_W;  // PC: 표지(1p)
-    return BOOK_W;                                   // 그 외: 스프레드
+// [COVER/SINGLE] 데스크톱(스프레드)에서도 "표지(첫 페이지)"와 "뒷표지(마지막 페이지)"는 단면로 표시
+    if (pageFlip){
+      const idx = pageFlip.getCurrentPageIndex();
+      const last = pageFlip.getPageCount() - 1;
+      if (idx === 0 || idx === last) return PAGE_W;
+    }
+
+    // 그 외에는 스프레드 폭
+    return BOOK_W;
   }
 
   // ====== 맞춤 배율 계산 & 적용 ======
@@ -243,7 +250,9 @@
 
     isSinglePageMode = !!forcePortrait;
     const usePortrait = isSinglePageMode;
-    const showCover = !usePortrait && showCoverDesktop; // PC: 표지 단면
+
+    // [COVER/SINGLE] 스프레드 모드(데스크톱)에서도 표지/뒷표지를 단면로 처리하려면 showCover를 true로 둔다
+    const showCover = !usePortrait && showCoverDesktop;
 
     pageFlip = new St.PageFlip(flipRoot, {
       width: PAGE_W, height: PAGE_H,
