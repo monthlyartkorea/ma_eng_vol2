@@ -44,6 +44,11 @@
       transition:none; background:var(--paper-dark);
       pointer-events:none !important; /* hover/클릭 완전 차단 */
     }
+<<<<<<< HEAD
+=======
+    #flip *, [class^="stf"], [class*=" stf"]{ pointer-events:none !important; }
+    .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }
+>>>>>>> parent of 46ccba1 (Update index.html)
 
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
     #status{font-weight:600}
@@ -114,7 +119,11 @@
   let PAGE_W = 1240, PAGE_H = 1624;
   let BOOK_W = PAGE_W * 2;
   const MOBILE_BREAKPOINT = 900;
+<<<<<<< HEAD
   let isSinglePageMode = false;   // ★ 전역으로 유지 (모드 스위치 시 필수)
+=======
+  let isSinglePageMode = true;
+>>>>>>> parent of 46ccba1 (Update index.html)
   let showCoverDesktop = true;
 
   let CONTENT_W = BOOK_W;
@@ -137,7 +146,10 @@
     const ae = document.activeElement;
     return !!ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
   };
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 46ccba1 (Update index.html)
   function applyCSSVars(){
     const root = document.documentElement;
     root.style.setProperty('--page-w', PAGE_W+'px');
@@ -145,7 +157,10 @@
     root.style.setProperty('--book-w', BOOK_W+'px');
     root.style.setProperty('--content-w', CONTENT_W+'px');
   }
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 46ccba1 (Update index.html)
   function getImageSize(url){
     return new Promise((resolve,reject)=>{
       const img=new Image();
@@ -156,8 +171,19 @@
   }
 
   function computeContentWidth(){
+<<<<<<< HEAD
     if (isSinglePageMode) return PAGE_W;   // 모바일: 항상 단면
     return BOOK_W;                          // 데스크톱: 기본 스프레드
+=======
+    if (isSinglePageMode) return PAGE_W;
+    if (pageFlip && pageFlip.getPageCount() > 0){
+      const idx = pageFlip.getCurrentPageIndex();
+      const last = pageFlip.getPageCount() - 1;
+      // 표지(첫페이지)와 뒷표지(마지막페이지)는 단면으로 표시
+      if (idx === 0 || idx === last) return PAGE_W;
+    }
+    return BOOK_W;
+>>>>>>> parent of 46ccba1 (Update index.html)
   }
 
   function computeFitScale(){
@@ -214,7 +240,7 @@
       scale = newFit;
       const vw = viewer.clientWidth, vh = viewer.clientHeight;
       tx = (vw - CONTENT_W * scale) / 2;
-      ty = (vh - PAGE_H * scale) / 2;
+      ty = (vh - PAGE_H     * scale) / 2;
       applyTransform();
     } else {
       clampPan(); applyTransform();
@@ -232,7 +258,12 @@
     const usePortrait = isSinglePageMode;
     const showCover = !usePortrait && showCoverDesktop;
 
+<<<<<<< HEAD
     CONTENT_W = usePortrait ? PAGE_W : BOOK_W;
+=======
+    // 초기 콘텐츠 폭 설정
+    CONTENT_W = usePortrait ? PAGE_W : PAGE_W; // 초기에는 표지로 시작하므로 PAGE_W
+>>>>>>> parent of 46ccba1 (Update index.html)
     applyCSSVars();
     fitScale = computeFitScale();
     scale = fitScale; tx = 0; ty = 0; applyTransform();
@@ -307,8 +338,11 @@
   function isMobileNarrow(){ return window.matchMedia(`(max-width:${MOBILE_BREAKPOINT}px)`).matches; }
   function applyModeInit(){
     const single = isMobileNarrow();
+<<<<<<< HEAD
     // ★ 전역에 반영
     isSinglePageMode = single;
+=======
+>>>>>>> parent of 46ccba1 (Update index.html)
     initFlip(currentPages, single);
     setStatus('Ready');
   }
