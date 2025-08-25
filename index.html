@@ -454,7 +454,9 @@
     e.preventDefault(); e.stopPropagation();
 
     // 엣지 탭 판정 개선 (모바일에서도 잘 동작하도록)
-    // 엣지 탭 판정 부분을 다음과 같이 수정
+    if (tapStart){
+      const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
+      const dt = performance.now() - tapStart.t;
       if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS){
         // 모바일에서는 더 관대한 확대 상태 판정
         const zoomThreshold = isMobileNarrow() ? 1.02 : 1.05;
