@@ -454,17 +454,20 @@
     e.preventDefault(); e.stopPropagation();
 
     // 엣지 탭 판정 개선 (모바일에서도 잘 동작하도록)
-    if (tapStart){
-      const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
-      const dt = performance.now() - tapStart.t;
+    // 엣지 탭 판정 부분을 다음과 같이 수정
       if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS){
-        // 확대 상태가 아닐 때만 엣지 탭으로 페이지 이동
-        const isZoomed = scale > (fitScale * 1.05); // 임계값 조정
+        // 모바일에서는 더 관대한 확대 상태 판정
+        const zoomThreshold = isMobileNarrow() ? 1.02 : 1.05;
+        const isZoomed = scale > (fitScale * zoomThreshold);
+        
         if (!isZoomed) {
           const xr = relXFromClient(e.clientX);
-          if (xr <= EDGE_TAP_ZONE) {
+          // 모바일에서는 엣지 영역을 더 넓게
+          const edgeZone = isMobileNarrow() ? 0.3 : EDGE_TAP_ZONE;
+          
+          if (xr <= edgeZone) {
             goPrev();
-          } else if (xr >= 1-EDGE_TAP_ZONE) {
+          } else if (xr >= 1-edgeZone) {
             goNext();
           }
         }
