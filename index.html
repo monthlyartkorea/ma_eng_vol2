@@ -19,12 +19,10 @@
   <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
 
   <style>
-    /* CSS 변수 */
     :root{
       --bg:#0b0c10; --panel:#151821; --text:#e9eef6; --muted:#9aa3b2; --accent:#46b3ff; --paper-dark:#0e1117;
       --page-w:1240px; --page-h:1624px; --book-w:2480px; --content-w:1240px;
     }
-    /* 기본 레이아웃 */
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#0d1017,#0b0c10);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
     .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px}
     .toolbar,.footer{background:#151821cc;backdrop-filter:blur(6px);padding:10px 12px;display:flex;align-items:center;gap:10px;border-block:1px solid #222938}
@@ -33,37 +31,26 @@
     .field{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3143;border-radius:10px;padding:6px 10px;background:#101522}
     .hint{color:var(--muted);font-size:13px}
 
-    /* 뷰포트 / 줌 레이어 */
-    #viewer{
-      position:relative; overflow:hidden; background:transparent; touch-action:none;
-    }
+    #viewer{ position:relative; overflow:hidden; background:transparent; touch-action:none; }
     #zoomLayer{
-      position:absolute; left:0; top:0;
-      width:fit-content; height:fit-content;
-      transform-origin:0 0;
-      cursor:grab; user-select:none; background:var(--paper-dark); will-change:transform;
+      position:absolute; left:0; top:0; width:fit-content; height:fit-content;
+      transform-origin:0 0; cursor:grab; user-select:none; background:var(--paper-dark); will-change:transform;
     }
     #zoomLayer.dragging{cursor:grabbing;}
 
-    /* PageFlip 컨테이너 (hover 애니 제거: 모든 포인터 차단) */
+    /* 오타 수정: var(--content-w) */
     #flip{
-      position:relative; width:var(--paeg-w); height:var(--page-h);
+      position:relative; width:var(--content-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
-      pointer-events:none !important;
+      pointer-events:none !important; /* hover/클릭 완전 차단 */
     }
-    /* PageFlip 내부 캔버스 배경색 지정 (pointer-events:none 처리로 클릭 방지) */
-    /*#flip *, [class^="stf"], [class*=" stf"]{ pointer-events:none !important; }
-    .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }*/ 
 
-    /* 툴바 */
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
     #status{font-weight:600}
 
-    /* 제목 */
     .titleBox{ min-width:0; max-width:clamp(160px,45vw,720px); display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-height:35px; }
     .titleText{ font-weight:700; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:clamp(12px,1.6vw,16px); line-height:1.1; min-width:0; }
 
-    /* 모바일 툴바 축약 */
     @media (max-width: 900px){
       .titleBox, #status, #pageGroup, .spacer { display:none !important; }
     }
@@ -105,7 +92,7 @@
 
 <script>
   /* ================= 기본 참조 ================= */
-  const DEFAULT_MANIFEST = "https://monthlyartkorea.github.io/ma_eng_vol2/manifest.json";
+  const DEFAULT_MANIFEST = "./manifest.json";
   const qp = new URLSearchParams(location.search);
   const manifestArg = qp.get("manifest") || DEFAULT_MANIFEST;
 
@@ -127,10 +114,10 @@
   let PAGE_W = 1240, PAGE_H = 1624;
   let BOOK_W = PAGE_W * 2;
   const MOBILE_BREAKPOINT = 900;
-  let isSinglePageMode = true;
-  let showCoverDesktop = true; // 데스크탑에서 앞/뒷표지 단면 표시 여부
+  let isSinglePageMode = false;   // ★ 전역으로 유지 (모드 스위치 시 필수)
+  let showCoverDesktop = true;
 
-  let CONTENT_W = BOOK_W; 
+  let CONTENT_W = BOOK_W;
 
   const MIN_SCALE = 0.25, MAX_SCALE = 4.0;
   let scale = 1, tx = 0, ty = 0, fitScale = 1;
@@ -150,7 +137,7 @@
     const ae = document.activeElement;
     return !!ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
   };
-  /* ================= CSS 변수 ================= */
+
   function applyCSSVars(){
     const root = document.documentElement;
     root.style.setProperty('--page-w', PAGE_W+'px');
@@ -158,7 +145,7 @@
     root.style.setProperty('--book-w', BOOK_W+'px');
     root.style.setProperty('--content-w', CONTENT_W+'px');
   }
-  /* ================= 이미지 크기 ================= */
+
   function getImageSize(url){
     return new Promise((resolve,reject)=>{
       const img=new Image();
@@ -168,19 +155,11 @@
     });
   }
 
-  /* ================= 앞/뒤표지 단면 폭 ================= */
   function computeContentWidth(){
-    if (isSinglePageMode) return PAGE_W;
-    if (pageFlip && pageFlip.getPageCount() > 0){
-      const idx = pageFlip.getCurrentPageIndex();
-      const last = pageFlip.getPageCount() - 1;
-      // 표지(첫페이지)와 뒷표지(마지막페이지)는 단면으로 표시
-      //if (idx === 0 || idx === last) return PAGE_W;
-    }
-    return BOOK_W;
+    if (isSinglePageMode) return PAGE_W;   // 모바일: 항상 단면
+    return BOOK_W;                          // 데스크톱: 기본 스프레드
   }
 
-  /* ================= 화면맞춤/변환 ================= */
   function computeFitScale(){
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
     const w = CONTENT_W, h = PAGE_H;
@@ -188,20 +167,18 @@
     if (w * s > vw) s = Math.min(vw / w, s);
     return Math.max(MIN_SCALE, s);
   }
-  // pan 위치를 허용범위 내로 조정
+
   function clampPan(){
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
     const cw = CONTENT_W * scale, ch = PAGE_H * scale;
     if (cw <= vw) tx = (vw - cw)/2; else tx = Math.min(0, Math.max(tx, vw - cw));
     if (ch <= vh) ty = (vh - ch)/2; else ty = Math.min(0, Math.max(ty, vh - ch));
   }
-  
-    // 현재 변환 행렬을 적용
+
   function applyTransform(){
     zoomLayer.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
   }
 
-   //
   function setScale(newScale, cx, cy){
     const rect = viewer.getBoundingClientRect();
     const x = (cx !== undefined) ? cx - rect.left : rect.width/2;
@@ -221,7 +198,6 @@
     applyTransform();
   }
 
-  // 콘텐츠 좌표계에서의 상대 X (0~1)
   function relXFromClient(clientX){
     const rect = viewer.getBoundingClientRect();
     const xViewer = clientX - rect.left;
@@ -230,7 +206,6 @@
     return Math.max(0, Math.min(1, rel));
   }
 
-  // 화면에 맞춤 (keepZoom: 현재 줌 유지 여부)
   function fitToScreen(keepZoom=false){
     CONTENT_W = computeContentWidth();
     applyCSSVars();
@@ -252,13 +227,15 @@
     flipRoot.innerHTML = '';
     if (pageFlip){ pageFlip.destroy(); pageFlip = null; }
 
+    // ★ 전역 갱신 (로컬 재선언 금지)
     isSinglePageMode = !!forcePortrait;
     const usePortrait = isSinglePageMode;
     const showCover = !usePortrait && showCoverDesktop;
 
-    // 초기 콘텐츠 폭 설정
-    CONTENT_W = usePortrait ? CONTENT_W : PAGE_W; // 초기에는 표지로 시작하므로 PAGE_W 사용
+    CONTENT_W = usePortrait ? PAGE_W : BOOK_W;
     applyCSSVars();
+    fitScale = computeFitScale();
+    scale = fitScale; tx = 0; ty = 0; applyTransform();
 
     pageFlip = new St.PageFlip(flipRoot, {
       width: PAGE_W, height: PAGE_H,
@@ -271,58 +248,35 @@
       mobileScrollSupport: false,
       disableFlipByClick: true
     });
-    
+
     pageFlip.loadFromImages(imageURLs);
 
     totalEl.textContent = `/ ${imageURLs.length}`;
     pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
 
-    // PageFlip 이벤트 리스너
     pageFlip.on('flip', e => {
       pageInput.value = e.data + 1;
-      // 페이지 변경 시 콘텐츠 폭 재계산 후 화면 맞춤
       setTimeout(() => {
-        if (scale <= fitScale * 1.01) {
-          fitToScreen(false);
-        } else {
-          fitToScreen(true);
-        }
-      }, 50); // PageFlip 애니메이션 완료 후 실행
+        if (scale <= fitScale * 1.01) fitToScreen(false);
+        else fitToScreen(true);
+      }, 50);
     });
 
-    // 초기 화면 맞춤 (여러 번 시도로 안정성 확보)
-    setTimeout(() => fitToScreen(false), 100);
-    setTimeout(() => fitToScreen(false), 300);
+    // 초기 화면맞춤
+    requestAnimationFrame(()=> fitToScreen(false));
   }
 
-  /* === 페이지 이동 함수 개선 === */
-  function goPrev(){ 
+  /* === 페이지 이동: 인덱스로 직접 이동(모드와 무관하게 안정) === */
+  function goPrev(){
     if (!pageFlip) return;
-    try {
-      pageFlip.flipPrev();
-    } catch (e) {
-      console.warn('flipPrev 실패:', e);
-      // 대체 방법: 현재 페이지에서 -1
-      const current = pageFlip.getCurrentPageIndex();
-      if (current > 0) {
-        pageFlip.flip(current - 1);
-      }
-    }
+    const i = pageFlip.getCurrentPageIndex();
+    if (i > 0) pageFlip.flip(i - 1);
   }
-  
-  function goNext(){ 
+  function goNext(){
     if (!pageFlip) return;
-    try {
-      pageFlip.flipNext();
-    } catch (e) {
-      console.warn('flipNext 실패:', e);
-      // 대체 방법: 현재 페이지에서 +1
-      const current = pageFlip.getCurrentPageIndex();
-      const max = pageFlip.getPageCount() - 1;
-      if (current < max) {
-        pageFlip.flip(current + 1);
-      }
-    }
+    const i = pageFlip.getCurrentPageIndex();
+    const last = pageFlip.getPageCount() - 1;
+    if (i < last) pageFlip.flip(i + 1);
   }
 
   /* ================= manifest ================= */
@@ -353,16 +307,20 @@
   function isMobileNarrow(){ return window.matchMedia(`(max-width:${MOBILE_BREAKPOINT}px)`).matches; }
   function applyModeInit(){
     const single = isMobileNarrow();
-    let isSinglePageMode = true;
+    // ★ 전역에 반영
+    isSinglePageMode = single;
     initFlip(currentPages, single);
     setStatus('Ready');
   }
   function applyModeOnResize(){
     const nextSingle = isMobileNarrow();
     const keepIndex = pageFlip ? pageFlip.getCurrentPageIndex() : 0;
-    if (!!nextSingle !== !!isSinglePageMode){
+    if (nextSingle !== isSinglePageMode){
+      isSinglePageMode = nextSingle;  // ★ 전역 업데이트
       initFlip(currentPages, nextSingle);
-      pageFlip.flip(keepIndex);
+      // 새 인스턴스 준비 뒤 현재 인덱스로 복귀
+      requestAnimationFrame(()=> pageFlip.flip(keepIndex));
+      requestAnimationFrame(()=> fitToScreen(false));
     } else {
       fitToScreen(true);
     }
@@ -453,20 +411,15 @@
     if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
     e.preventDefault(); e.stopPropagation();
 
-    // 엣지 탭 판정 개선 (모바일에서도 잘 동작하도록)
     if (tapStart){
       const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
       const dt = performance.now() - tapStart.t;
       if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS){
-        // 확대 상태가 아닐 때만 엣지 탭으로 페이지 이동
-        const isZoomed = scale > (fitScale * 1.05); // 임계값 조정
+        const isZoomed = scale > (fitScale * 1.05);
         if (!isZoomed) {
           const xr = relXFromClient(e.clientX);
-          if (xr <= EDGE_TAP_ZONE) {
-            goPrev();
-          } else if (xr >= 1-EDGE_TAP_ZONE) {
-            goNext();
-          }
+          if (xr <= EDGE_TAP_ZONE) goPrev();
+          else if (xr >= 1-EDGE_TAP_ZONE) goNext();
         }
       }
       tapStart = null;
@@ -480,26 +433,6 @@
   zoomLayer.addEventListener('pointerup', endPointer, { passive:false });
   zoomLayer.addEventListener('pointercancel', endPointer, { passive:false });
   zoomLayer.addEventListener('pointerleave', endPointer, { passive:false });
-
-  /* ================= 키보드 ================= */
-  const PAN_STEP_PX = 120;
-  window.addEventListener('keydown', (e)=>{
-    if (isTextInputFocused()) return;
-    const k = e.key;
-    if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) return;
-    e.preventDefault();
-    if (GT_FIT()){
-      const step = PAN_STEP_PX / scale;
-      if (k === 'ArrowLeft')  tx += step;
-      if (k === 'ArrowRight') tx -= step;
-      if (k === 'ArrowUp')    ty += step;
-      if (k === 'ArrowDown')  ty -= step;
-      clampPan(); applyTransform();
-      return;
-    }
-    if (k === 'ArrowLeft')  goPrev();
-    if (k === 'ArrowRight') goNext();
-  });
 
   /* ================= 초기 로드 ================= */
   (async ()=>{
@@ -516,7 +449,7 @@
       PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2;
       applyCSSVars();
 
-      initFlip(currentPages, isMobileNarrow());
+      applyModeInit(); // ← 내부에서 isSinglePageMode 설정 + initFlip 호출
       setStatus('Ready');
     }catch(e){
       console.error(e);
@@ -524,10 +457,9 @@
     }
   })();
 
-  // 우클릭 방지
   document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
 
-  // 리사이즈 대응
+  /* ================= 리사이즈 대응 ================= */
   let _resizeTimer=null;
   window.addEventListener('resize', ()=>{
     clearTimeout(_resizeTimer);
