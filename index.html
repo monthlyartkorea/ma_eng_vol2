@@ -19,10 +19,12 @@
   <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
 
   <style>
+    /* CSS 변수 */
     :root{
       --bg:#0b0c10; --panel:#151821; --text:#e9eef6; --muted:#9aa3b2; --accent:#46b3ff; --paper-dark:#0e1117;
       --page-w:1240px; --page-h:1624px; --book-w:2480px; --content-w:1240px;
     }
+    /* 기본 레이아웃 */
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#0d1017,#0b0c10);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
     .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;gap:10px}
     .toolbar,.footer{background:#151821cc;backdrop-filter:blur(6px);padding:10px 12px;display:flex;align-items:center;gap:10px;border-block:1px solid #222938}
@@ -45,13 +47,15 @@
 
     /* PageFlip 컨테이너 (hover 애니 제거: 모든 포인터 차단) */
     #flip{
-      position:relative; width:var(--content-w); height:var(--page-h);
+      position:relative; width:var(--paeg-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
       pointer-events:none !important;
     }
-    #flip *, [class^="stf"], [class*=" stf"]{ pointer-events:none !important; }
-    .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }
+    /* PageFlip 내부 캔버스 배경색 지정 (pointer-events:none 처리로 클릭 방지) */
+    /*#flip *, [class^="stf"], [class*=" stf"]{ pointer-events:none !important; }
+    .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }*/ 
 
+    /* 툴바 */
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
     #status{font-weight:600}
 
@@ -101,7 +105,7 @@
 
 <script>
   /* ================= 기본 참조 ================= */
-  const DEFAULT_MANIFEST = "./manifest.json";
+  const DEFAULT_MANIFEST = "https://monthlyartkorea.github.io/ma_eng_vol2/manifest.json";
   const qp = new URLSearchParams(location.search);
   const manifestArg = qp.get("manifest") || DEFAULT_MANIFEST;
 
@@ -124,7 +128,7 @@
   let BOOK_W = PAGE_W * 2;
   const MOBILE_BREAKPOINT = 900;
   let isSinglePageMode = true;
-  let showCoverDesktop = true;
+  let showCoverDesktop = true; // 데스크탑에서 앞/뒷표지 단면 표시 여부
 
   let CONTENT_W = BOOK_W; 
 
@@ -146,6 +150,7 @@
     const ae = document.activeElement;
     return !!ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
   };
+  /* ================= CSS 변수 ================= */
   function applyCSSVars(){
     const root = document.documentElement;
     root.style.setProperty('--page-w', PAGE_W+'px');
@@ -153,6 +158,7 @@
     root.style.setProperty('--book-w', BOOK_W+'px');
     root.style.setProperty('--content-w', CONTENT_W+'px');
   }
+  /* ================= 이미지 크기 ================= */
   function getImageSize(url){
     return new Promise((resolve,reject)=>{
       const img=new Image();
@@ -169,7 +175,7 @@
       const idx = pageFlip.getCurrentPageIndex();
       const last = pageFlip.getPageCount() - 1;
       // 표지(첫페이지)와 뒷표지(마지막페이지)는 단면으로 표시
-      if (idx === 0 || idx === last) return PAGE_W;
+      //if (idx === 0 || idx === last) return PAGE_W;
     }
     return BOOK_W;
   }
@@ -182,18 +188,20 @@
     if (w * s > vw) s = Math.min(vw / w, s);
     return Math.max(MIN_SCALE, s);
   }
-
+  // pan 위치를 허용범위 내로 조정
   function clampPan(){
     const vw = viewer.clientWidth, vh = viewer.clientHeight;
     const cw = CONTENT_W * scale, ch = PAGE_H * scale;
     if (cw <= vw) tx = (vw - cw)/2; else tx = Math.min(0, Math.max(tx, vw - cw));
     if (ch <= vh) ty = (vh - ch)/2; else ty = Math.min(0, Math.max(ty, vh - ch));
   }
-
+  
+    // 현재 변환 행렬을 적용
   function applyTransform(){
     zoomLayer.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
   }
 
+   //
   function setScale(newScale, cx, cy){
     const rect = viewer.getBoundingClientRect();
     const x = (cx !== undefined) ? cx - rect.left : rect.width/2;
@@ -222,6 +230,7 @@
     return Math.max(0, Math.min(1, rel));
   }
 
+  // 화면에 맞춤 (keepZoom: 현재 줌 유지 여부)
   function fitToScreen(keepZoom=false){
     CONTENT_W = computeContentWidth();
     applyCSSVars();
@@ -230,7 +239,7 @@
       scale = newFit;
       const vw = viewer.clientWidth, vh = viewer.clientHeight;
       tx = (vw - CONTENT_W * scale) / 2;
-      ty = (vh - PAGE_H     * scale) / 2;
+      ty = (vh - PAGE_H * scale) / 2;
       applyTransform();
     } else {
       clampPan(); applyTransform();
@@ -248,7 +257,7 @@
     const showCover = !usePortrait && showCoverDesktop;
 
     // 초기 콘텐츠 폭 설정
-    CONTENT_W = usePortrait ? PAGE_W : PAGE_W; // 초기에는 표지로 시작하므로 PAGE_W
+    CONTENT_W = usePortrait ? CONTENT_W : PAGE_W; // 초기에는 표지로 시작하므로 PAGE_W 사용
     applyCSSVars();
 
     pageFlip = new St.PageFlip(flipRoot, {
@@ -344,6 +353,7 @@
   function isMobileNarrow(){ return window.matchMedia(`(max-width:${MOBILE_BREAKPOINT}px)`).matches; }
   function applyModeInit(){
     const single = isMobileNarrow();
+    let isSinglePageMode = true;
     initFlip(currentPages, single);
     setStatus('Ready');
   }
