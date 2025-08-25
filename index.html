@@ -47,7 +47,7 @@
 
     /* PageFlip 컨테이너 (hover 애니 제거: 모든 포인터 차단) */
     #flip{
-      position:relative; width:var(--paeg-w); height:var(--page-h);
+      position:relative; width:var(--page-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
       pointer-events:none !important;
     }
@@ -257,7 +257,7 @@
     const showCover = !usePortrait && showCoverDesktop;
 
     // 초기 콘텐츠 폭 설정
-    CONTENT_W = usePortrait ? CONTENT_W : PAGE_W; // 초기에는 표지로 시작하므로 PAGE_W 사용
+    CONTENT_W = usePortrait ? PAGE_W : BOOK_W; // 초기에는 표지로 시작하므로 PAGE_W 사용
     applyCSSVars();
 
     pageFlip = new St.PageFlip(flipRoot, {
@@ -353,7 +353,7 @@
   function isMobileNarrow(){ return window.matchMedia(`(max-width:${MOBILE_BREAKPOINT}px)`).matches; }
   function applyModeInit(){
     const single = isMobileNarrow();
-    let isSinglePageMode = true;
+    isSinglePageMode = true;
     initFlip(currentPages, single);
     setStatus('Ready');
   }
