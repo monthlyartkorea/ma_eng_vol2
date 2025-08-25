@@ -123,8 +123,8 @@
   let PAGE_W = 1240, PAGE_H = 1624;
   let BOOK_W = PAGE_W * 2;
   const MOBILE_BREAKPOINT = 900;
-  let isSinglePageMode = true;  //이전값 false
-  let showCoverDesktop = true; // PC에서 표지/뒷표지 단면
+  let isSinglePageMode = true;
+  let showCoverDesktop = true;
 
   let CONTENT_W = BOOK_W; 
 
@@ -165,10 +165,11 @@
   /* ================= 앞/뒤표지 단면 폭 ================= */
   function computeContentWidth(){
     if (isSinglePageMode) return PAGE_W;
-    if (pageFlip){
+    if (pageFlip && pageFlip.getPageCount() > 0){
       const idx = pageFlip.getCurrentPageIndex();
       const last = pageFlip.getPageCount() - 1;
-      if (idx === 0 || idx === last) return PAGE_W; // 표지/뒷표지 = 단면
+      // 표지(첫페이지)와 뒷표지(마지막페이지)는 단면으로 표시
+      if (idx === 0 || idx === last) return PAGE_W;
     }
     return BOOK_W;
   }
@@ -246,8 +247,8 @@
     const usePortrait = isSinglePageMode;
     const showCover = !usePortrait && showCoverDesktop;
 
-    // 초기 페이지(커버)의 실제 폭을 먼저 반영
-    CONTENT_W = usePortrait ? PAGE_W : (showCover ? PAGE_W : BOOK_W);
+    // 초기 콘텐츠 폭 설정
+    CONTENT_W = usePortrait ? PAGE_W : PAGE_W; // 초기에는 표지로 시작하므로 PAGE_W
     applyCSSVars();
 
     pageFlip = new St.PageFlip(flipRoot, {
@@ -257,30 +258,63 @@
       minHeight: PAGE_H, maxHeight: PAGE_H,
       usePortrait,
       showCover,
-      maxShadowOpacity: 0,        // hover 시 그림자까지 제거
+      maxShadowOpacity: 0,
       mobileScrollSupport: false,
       disableFlipByClick: true
     });
+    
     pageFlip.loadFromImages(imageURLs);
 
     totalEl.textContent = `/ ${imageURLs.length}`;
     pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
 
-    // 초기 스냅핏(두 번 보정: 레이아웃/이미지 로드 타이밍 보완)
-    requestAnimationFrame(()=> fitToScreen(false));
-    setTimeout(()=> fitToScreen(false), 150);
-
-    // 페이지 바뀔 때마다 폭 재산정(표지/뒷표지 ↔ 스프레드)
+    // PageFlip 이벤트 리스너
     pageFlip.on('flip', e => {
       pageInput.value = e.data + 1;
-      if (scale <= fitScale * 1.01) fitToScreen(false);
-      else fitToScreen(true);
+      // 페이지 변경 시 콘텐츠 폭 재계산 후 화면 맞춤
+      setTimeout(() => {
+        if (scale <= fitScale * 1.01) {
+          fitToScreen(false);
+        } else {
+          fitToScreen(true);
+        }
+      }, 50); // PageFlip 애니메이션 완료 후 실행
     });
+
+    // 초기 화면 맞춤 (여러 번 시도로 안정성 확보)
+    setTimeout(() => fitToScreen(false), 100);
+    setTimeout(() => fitToScreen(false), 300);
   }
 
-  /* === 페이지 이동은 반드시 라이브러리 API 사용 === */
-  function goPrev(){ pageFlip?.flipPrev(); }
-  function goNext(){ pageFlip?.flipNext(); }
+  /* === 페이지 이동 함수 개선 === */
+  function goPrev(){ 
+    if (!pageFlip) return;
+    try {
+      pageFlip.flipPrev();
+    } catch (e) {
+      console.warn('flipPrev 실패:', e);
+      // 대체 방법: 현재 페이지에서 -1
+      const current = pageFlip.getCurrentPageIndex();
+      if (current > 0) {
+        pageFlip.flip(current - 1);
+      }
+    }
+  }
+  
+  function goNext(){ 
+    if (!pageFlip) return;
+    try {
+      pageFlip.flipNext();
+    } catch (e) {
+      console.warn('flipNext 실패:', e);
+      // 대체 방법: 현재 페이지에서 +1
+      const current = pageFlip.getCurrentPageIndex();
+      const max = pageFlip.getPageCount() - 1;
+      if (current < max) {
+        pageFlip.flip(current + 1);
+      }
+    }
+  }
 
   /* ================= manifest ================= */
   async function fetchManifest(url){
@@ -409,14 +443,21 @@
     if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
     e.preventDefault(); e.stopPropagation();
 
-    // 확대가 아닐 때만 엣지 탭 판정 (콘텐츠 좌표계 기준)
+    // 엣지 탭 판정 개선 (모바일에서도 잘 동작하도록)
     if (tapStart){
       const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
       const dt = performance.now() - tapStart.t;
-      if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS && !GT_FIT()){
-        const xr = relXFromClient(e.clientX);
-        if (xr <= EDGE_TAP_ZONE) goPrev();
-        else if (xr >= 1-EDGE_TAP_ZONE) goNext();
+      if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS){
+        // 확대 상태가 아닐 때만 엣지 탭으로 페이지 이동
+        const isZoomed = scale > (fitScale * 1.05); // 임계값 조정
+        if (!isZoomed) {
+          const xr = relXFromClient(e.clientX);
+          if (xr <= EDGE_TAP_ZONE) {
+            goPrev();
+          } else if (xr >= 1-EDGE_TAP_ZONE) {
+            goNext();
+          }
+        }
       }
       tapStart = null;
     }
