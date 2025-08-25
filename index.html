@@ -394,4 +394,114 @@
     e.preventDefault(); e.stopPropagation();
 
     const r = viewer.getBoundingClientRect();
-    const cur =
+    const cur = { x:e.clientX - r.left, y:e.clientY - r.top };
+    pointers.set(e.pointerId, cur);
+
+    if (pointers.size === 2){
+      const [a,b] = [...pointers.values()];
+      const d = Math.max(1, dist(a,b));
+      const c = mid(a,b);
+      const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * (d / pinchStartDist)));
+      setScale(target, c.x + r.left, c.y + r.top);
+      tx += (c.x - pinchCenter.x);
+      ty += (c.y - pinchCenter.y);
+      clampPan(); applyTransform();
+      pinchCenter = c;
+    } else if (isDragging && GT_FIT()){
+      tx += (cur.x - dragLast.x);
+      ty += (cur.y - dragLast.y);
+      dragLast = cur;
+      clampPan(); applyTransform();
+    } else if (!isDragging && pointers.size === 1 && GT_FIT()){
+      isDragging = true; zoomLayer.classList.add('dragging'); dragLast = cur;
+    }
+  }, { passive:false });
+
+  function endPointer(e){
+    if (pointers.has(e.pointerId)) pointers.delete(e.pointerId);
+    e.preventDefault(); e.stopPropagation();
+
+    // 탭 내비: 확대가 아닐 때만 (가장자리 영역)
+    if (tapStart){
+      const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
+      const dt = performance.now() - tapStart.t;
+      if (moved <= TAP_MAX_DIST && dt <= TAP_MAX_MS && !GT_FIT()){
+        const r = flipRoot.getBoundingClientRect();
+        if (e.clientY >= r.top && e.clientY <= r.bottom){
+          const xr = (e.clientX - r.left) / r.width;
+          if (xr <= EDGE_TAP_ZONE) goPrev();
+          else if (xr >= 1-EDGE_TAP_ZONE) goNext();
+        }
+      }
+      tapStart = null;
+    }
+
+    if (pointers.size === 0){ isDragging = false; zoomLayer.classList.remove('dragging'); }
+    if (pointers.size < 2) pinchStartDist = 0;
+
+    if (scale <= fitScale + 1e-4) fitToScreen(false);
+  }
+  zoomLayer.addEventListener('pointerup', endPointer, { passive:false });
+  zoomLayer.addEventListener('pointercancel', endPointer, { passive:false });
+  zoomLayer.addEventListener('pointerleave', endPointer, { passive:false });
+
+  // ====== 키보드 ======
+  const PAN_STEP_PX = 120;
+  window.addEventListener('keydown', (e)=>{
+    if (isTextInputFocused()) return;
+    const k = e.key;
+    if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) return;
+    e.preventDefault();
+    if (GT_FIT()){
+      const step = PAN_STEP_PX / scale;
+      if (k === 'ArrowLeft')  tx += step;
+      if (k === 'ArrowRight') tx -= step;
+      if (k === 'ArrowUp')    ty += step;
+      if (k === 'ArrowDown')  ty -= step;
+      clampPan(); applyTransform();
+      return;
+    }
+    if (k === 'ArrowLeft')  goPrev();
+    if (k === 'ArrowRight') goNext();
+  });
+
+  // ====== 초기 로드 ======
+  (async ()=>{
+    try{
+      const absManifestUrl = toAbs(manifestArg, location.href);
+      const raw = await fetchManifest(absManifestUrl);
+      const normalized = normalizeManifest(raw, absManifestUrl);
+
+      bookTitleEl.textContent = normalized.title || 'Monthly Art – Flipbook';
+      currentPages = normalized.pages;
+      if (!currentPages.length){ setStatus('manifest에 페이지가 없습니다.'); return; }
+
+      const dim = await getImageSize(currentPages[0]);
+      PAGE_W = dim.w; PAGE_H = dim.h; BOOK_W = PAGE_W * 2;
+      applyCSSVars();
+
+      initFlip(currentPages, isMobileNarrow());
+      // 초기 한 프레임 뒤에 fit → 첫 페이지가 정확히 화면에 중앙 맞춤
+      requestAnimationFrame(()=> fitToScreen(false));
+
+      setStatus('Ready');
+    }catch(e){
+      console.error(e);
+      setStatus('로드 오류: ' + (e.message || e));
+    }
+  })();
+
+  // 우클릭 방지
+  document.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, { capture:true });
+
+  // 리사이즈 대응
+  let _resizeTimer=null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(applyModeOnResize, 80);
+  });
+  const ro = new ResizeObserver(()=> fitToScreen(true));
+  ro.observe(viewer);
+</script>
+</body>
+</html>
