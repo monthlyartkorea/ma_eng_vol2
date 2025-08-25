@@ -31,14 +31,12 @@
     .field{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3143;border-radius:10px;padding:6px 10px;background:#101522}
     .hint{color:var(--muted);font-size:13px}
 
-    /* 뷰포트/줌 레이어
-       - 중앙정렬(grid/place-items:center) 제거
-       - zoomLayer를 absolute(0,0)로 고정 → tx/ty로만 위치 제어 */
+    /* 뷰포트/줌 레이어 */
     #viewer{
       position:relative;
       overflow:hidden;
       background:transparent;
-      touch-action:none;
+      touch-action:none; /* 모든 제스처 직접 처리 */
     }
     #zoomLayer{
       position:absolute; left:0; top:0;
@@ -48,13 +46,13 @@
     }
     #zoomLayer.dragging{cursor:grabbing;}
 
-    /* PageFlip 컨테이너 */
+    /* PageFlip 컨테이너 + 내부 전부 이벤트 차단(hover 애니메이션 완전 차단) */
     #flip{
       position:relative; width:var(--content-w); height:var(--page-h);
       transition:none; background:var(--paper-dark);
-      pointer-events:none; /* hover/클릭 완전 차단 (제스처 충돌 방지) */
+      pointer-events:none !important;
     }
-    #flip *{ pointer-events:none !important; }
+    #flip *, [class^="stf"], [class*=" stf"]{ pointer-events:none !important; }
     .stf__canvas, .stf_canvas, #flip canvas{ background:var(--paper-dark) !important; }
 
     input[type="number"]{width:70px;background:transparent;border:none;color:inherit;text-align:right;font-weight:700}
@@ -232,7 +230,7 @@
     CONTENT_W = computeContentWidth();
     applyCSSVars();
     const newFit = computeFitScale();
-    if (!keepZoom || scale <= fitScale + 0.001) {
+    if (!keepZoom || scale <= fitScale * 1.01) { // 사용자 확대가 없으면 스냅
       scale = newFit;
       const vw = viewer.clientWidth, vh = viewer.clientHeight;
       tx = (vw - CONTENT_W * scale) / 2;
@@ -270,10 +268,17 @@
     totalEl.textContent = `/ ${imageURLs.length}`;
     pageInput.min = 1; pageInput.max = imageURLs.length; pageInput.value = 1;
 
+    // 초기(커버)의 실제 폭을 즉시 반영해 쏠림 방지
+    CONTENT_W = computeContentWidth();
+    applyCSSVars();
+    requestAnimationFrame(()=> fitToScreen(false));
+
     // 페이지 바뀔 때마다 폭 재산정(표지/뒷표지 ↔ 스프레드)
     pageFlip.on('flip', e => {
       pageInput.value = e.data + 1;
-      fitToScreen(true);
+      // 사용자가 확대 안 했으면 항상 새 레이아웃에 스냅
+      if (scale <= fitScale * 1.01) fitToScreen(false);
+      else fitToScreen(true);
     });
   }
 
@@ -319,9 +324,6 @@
   function applyModeInit(){
     const single = isMobileNarrow();
     initFlip(currentPages, single);
-
-    // 초기 레이아웃이 모두 반영된 다음 프레임에 fit 적용(초기 쏠림 방지)
-    requestAnimationFrame(()=> fitToScreen(false));
     setStatus('Ready');
   }
   function applyModeOnResize(){
@@ -330,7 +332,6 @@
     if (!!nextSingle !== !!isSinglePageMode){
       initFlip(currentPages, nextSingle);
       pageFlip.flip(keepIndex);
-      requestAnimationFrame(()=> fitToScreen(false));
     } else {
       fitToScreen(true);
     }
@@ -360,13 +361,13 @@
     const factor = Math.exp(-dy / 300);
     const target = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
     setScale(target, e.clientX, e.clientY);
-    if (scale <= fitScale + 1e-4) fitToScreen(false);
+    if (scale <= fitScale * 1.001) fitToScreen(false);
   }, { passive:false, capture:true });
 
   // ====== 핀치/드래그 : zoomLayer 에서 처리 ======
   function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
   function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
-  const GT_FIT = ()=> scale > (fitScale + 0.001);
+  const GT_FIT = ()=> scale > (fitScale * 1.01); // 허용 오차 1%
 
   zoomLayer.addEventListener('pointerdown', (e)=>{
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -439,7 +440,7 @@
     if (pointers.size === 0){ isDragging = false; zoomLayer.classList.remove('dragging'); }
     if (pointers.size < 2) pinchStartDist = 0;
 
-    if (scale <= fitScale + 1e-4) fitToScreen(false);
+    if (scale <= fitScale * 1.001) fitToScreen(false);
   }
   zoomLayer.addEventListener('pointerup', endPointer, { passive:false });
   zoomLayer.addEventListener('pointercancel', endPointer, { passive:false });
@@ -481,9 +482,6 @@
       applyCSSVars();
 
       initFlip(currentPages, isMobileNarrow());
-      // 초기 한 프레임 뒤에 fit → 첫 페이지가 정확히 화면에 중앙 맞춤
-      requestAnimationFrame(()=> fitToScreen(false));
-
       setStatus('Ready');
     }catch(e){
       console.error(e);
